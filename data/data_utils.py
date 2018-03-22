@@ -5,39 +5,73 @@
 import numpy as np
 from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.datasets import load_svmlight_file, dump_svmlight_file
+import operator
 
-__author__='KD'
+__author__ = 'KD'
 
 def read_split_file(split_fname):
     '''
         Return array of train/ test split
+        Args:
+            split_fname: str: split file with 0/1 in each line
+        Returns:
+            np.array: split
     '''
     return np.genfromtxt(split_fname, dtype=np.int)
 
-def train_test_split(features, labels, split_fname):
+def _split_data(data, indices):
+    """
+        Handles list and sparse/dense matrices
+        Args:
+            data: list of matrix
+            indices: indices to choose
+        Returns:
+            chosen data in the same format
+    """
+    if isinstance(data, list):
+        return list(operator.itemgetter(*indices)(data))
+    else:
+        return data[indices, :]
+
+
+def split_train_test(features, labels, split):
     '''
-        Input: features and labels
-        Returns: Train and test split based on (0:train and 1:test)
+        Split a list of text in train and text set
+        0: train, 1: test
+        Args:
+            features: list or dense or sparse matrix
+            labels: list or dense or sparse matrix
+            split: numpy array with 0/1 split
+        Returns:
+            train_feat, train_labels: train features and labels
+            test_feat, test_labels: test features and labels
     '''
-    split = read_split_file(split_fname)
-    train_features = features[split==0, :]
-    test_features = features[split==1, :]
-    train_labels = labels[split==0, :]
-    test_labels = labels[split==1, :]
-    return train_features, train_labels, test_features, test_labels
+    train_idx = np.where(split == 0)[0].tolist()
+    test_idx = np.where(split == 1)[0].tolist()
+    train_feat, test_feat = _split_data(features, train_idx), _split_data(
+        features, test_idx)
+    train_labels, test_labels = _split_data(labels, train_idx), _split_data(
+        labels, test_idx)
+    return train_feat, train_labels, test_feat, test_labels
+
 
 def write_sparse_file(labels, filename, header=True):
     '''
         Write sparse label matrix to text file (comma separated)
         Header: (#users, #labels)
+        Args:
+            labels: sparse matrix: labels
+            filename: str: output file
+            header: bool: include header or not
     '''
     with open(filename, 'w') as f:
-        f.write(str(labels.shape[0])+" "+str(labels.shape[1])+"\n")
+        if header:
+            f.write(str(labels.shape[0])+" "+str(labels.shape[1])+"\n")
         non_zero_rows, non_zero_cols = labels.nonzero()
         temp=''
         for i in range(len(non_zero_rows)):
             try:
-                is_last_element = non_zero_rows[i]!=non_zero_rows[i+1]
+                is_last_element = non_zero_rows[i] != non_zero_rows[i+1]
             except IndexError:
                 is_last_element = True
             temp = temp + str(non_zero_cols[i])+':'+str(labels[non_zero_rows[i], non_zero_cols[i]])+" "
@@ -47,8 +81,10 @@ def write_sparse_file(labels, filename, header=True):
 
 def read_sparse_file(filename, header=True):
     '''
-        Input: Sparse file (idx:value)
-        Returns: CSR matrix
+        Args:
+            input file in libsvm format
+        Returns: 
+            CSR matrix
     '''
     with open(filename, 'r') as f:
         if header:
@@ -72,8 +108,12 @@ def read_sparse_file(filename, header=True):
 
 def write_data(filename, features, labels):
     '''
-        Write data in sparse format (without header, write manually if needed)
-        labels idx:value
+        Write data in sparse format
+        Args:
+            filename: str: output file name
+            features: csr_matrix: features matrix
+            labels: csr_matix: labels matrix
+
     '''
     with open(filename, 'wb') as f:
         dump_svmlight_file(features, labels, f, multilabel=True)
@@ -81,7 +121,16 @@ def write_data(filename, features, labels):
 def read_data(filename, header=True):
     '''
         Read data in sparse format
-        Returns: features and label matrix (in sparse format), #samples, #features, #labels
+        Args:
+            filename: str: output file name
+            header: bool: If header is present or not
+        Returns:
+            features: csr_matrix: features matrix
+            labels: csr_matix: labels matrix
+            num_samples: int: #instances
+            num_feat: int: #features
+            num_labels: int: #labels
+
     '''
     with open(filename, 'rb') as f:
         if header:
@@ -95,8 +144,11 @@ def read_data(filename, header=True):
 
 def binarize_labels(labels, num_classes):
     '''
-        Input: list of list
-        Returns: csr_matrix with positive labels as 1
+        Binarize labels
+        Args:
+            labels: list of list
+        Returns: 
+            csr_matrix with positive labels as 1
     '''
     temp = lil_matrix((len(labels), num_classes), dtype=np.int)
     for i in range(len(labels)):

@@ -70,6 +70,7 @@ def sort_vocabulary(vocabulary):
     """
     keys = list(vocabulary.keys())
     keys.sort()
+    keys = ['<PAD>', 'UNK'].extend(keys)
     vocabulary = dict(zip(keys, range(len(keys))))
     return vocabulary
 
@@ -248,7 +249,7 @@ class TextUtility(object):
         doc_freq = np.array(count_mat.sum(axis=0)).reshape(
             len(self.vocabulary))
         num_docs = count_mat.shape[0]
-        updated_vocabulary = {'UNK': 0}
+        updated_vocabulary = {}
         idx = 1
         for key, val in self.vocabulary.items():
             if doc_freq[val] // num_docs <= self.max_df and doc_freq[val] >= self.min_df:
