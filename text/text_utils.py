@@ -2,17 +2,15 @@
         Text utlities
         - Use sparse matrices which is suitable for large datasets
 """
-
+import os
 import re
-import numpy as np
-from scipy.sparse import lil_matrix
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
+import pickle
 import logging
 import json
-from scipy.sparse import save_npz
-import pickle
-import os
+import numpy as np
+from scipy.sparse import lil_matrix, csr_matrix, save_npz
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
 
 __author__ = 'KD'
 
@@ -37,50 +35,83 @@ def save_mat(fname, sp_mat):
     with open(fname, 'wb') as fp:
         save_npz(fp, sp_mat)
 
-def compute_doc_frequency(term_freq, vocab_size):
+class TFIDF(object):
     """
-        #documents in which a word appears
-        +1 to avoid zeros
+        Compute TF-IDF features
     """
-    return 1 + np.array(term_freq.sum(axis=0)).reshape(vocab_size)
+    def __init__(self, vocabulary_size):
+        self.vocabulary_size = vocabulary_size
+        self.inv_doc_freq = None
 
+    def fit(self, text):
+        """
+            Compute inverse document frequency from given data
+            Args:
+                text: list: vectorized text (i.e. word id's of each document)
+        """
+        term_freq = self.vectorized_text_to_term_freq(text)
+        self.inv_doc_freq = self.compute_inv_doc_freq(term_freq)
 
-def compute_inv_doc_freq(term_freq):
-    """
-        TF-IDF weightage
-    """
-    num_docs, vocab_size = term_freq.shape
-    inv_doc_freq = num_docs / compute_doc_frequency(term_freq, vocab_size)
-    return np.log(inv_doc_freq)
+    def transform(self, text, use_log=False):
+        """
+            Compute TF-IDF features for given data
+            Args:
+                text: list: vectorized text (i.e. word id's of each document)
+            Returns:
+                csr_matrix: TF-IDF features
+        """
+        term_freq = self.vectorized_text_to_term_freq(text)
+        if use_log:
+            term_freq = csr_matrix.log1p(term_freq)
+        return self.tf_idf(term_freq)
 
-def vectorized_text_to_term_freq(vectorized_text, vocab_size):
-    """
-        Convert vectorized text to term frequency matrix
-    """
-    num_samples = len(vectorized_text)
-    term_freq = lil_matrix((num_samples, vocab_size), dtype=np.float32)
-    for idx, item in enumerate(vectorized_text):
-        for i in item:
-            term_freq[idx, i] += 1
-    return term_freq.tocsr()
+    def compute_doc_frequency(self, term_freq):
+        """
+            #documents in which a word appears
+            +1 to avoid zeros
+            Args:
+                term_freq: csr_matrix: term frequency matrix (num_docs, num_words)
+            Returns:
+                np.array: Document frequency for each word
+        """
+        return 1 + np.array(term_freq.sum(axis=0)).reshape(self.vocabulary_size)
 
-def sort_vocabulary(vocabulary):
-    """
-        Sort vocabulary in lexiographic order
-    """
-    keys = list(vocabulary.keys())
-    keys.sort()
-    keys = ['<PAD>', 'UNK'].extend(keys)
-    vocabulary = dict(zip(keys, range(len(keys))))
-    return vocabulary
+    def compute_inv_doc_freq(self, term_freq):
+        """
+            Compute inverse document frequency
+            Args:
+                term_freq: csr_matrix: term frequency matrix (num_docs, num_words)
+            Returns:
+                idf: np.array: inverse document frequency
+        """
+        num_docs, _ = term_freq.shape
+        inv_doc_freq = num_docs / self.compute_doc_frequency(term_freq)
+        return np.log(inv_doc_freq).reshape(1, self.vocabulary_size)
 
-def tf_idf(term_freq):
-    """
-        Compute tf-idf features
-    """
-    _, vocab_size = term_freq.shape
-    inv_doc_freq = compute_inv_doc_freq(term_freq).reshape(1, vocab_size)
-    return term_freq.multiply(inv_doc_freq)
+    def vectorized_text_to_term_freq(self, vectorized_text):
+        """
+            Convert vectorized text to term frequency matrix
+            Args:
+                vectorized_text: list: vectorized text (i.e. word id's of each document)
+            Returns:
+                term_freq: csr_matrix: term frequency matrix
+        """
+        num_samples = len(vectorized_text)
+        term_freq = lil_matrix((num_samples, self.vocabulary_size), dtype=np.float32)
+        for idx, item in enumerate(vectorized_text):
+            for i in item:
+                term_freq[idx, i] += 1
+        return term_freq.tocsr()
+
+    def tf_idf(self, term_freq):
+        """
+            Compute tf-idf features
+            Args:
+                term_freq: csr_matrix: term frequency matrix
+            Returns:
+                tf-idf: csr_matrix: tf-idf features
+        """
+        return term_freq.multiply(self.inv_doc_freq)
 
 
 class TextUtility(object):
@@ -91,7 +122,7 @@ class TextUtility(object):
     def __init__(self,
                  max_df=1.0,
                  min_df=1,
-                 vocabulary={'UNK': 0},
+                 vocabulary={},
                  min_word_length=2,
                  max_vocabulary_size=-1,
                  remove_stopwords=True):
@@ -127,7 +158,7 @@ class TextUtility(object):
         }
         print(stats)
 
-    def fit(self, textf, voc_fname='vocabulary.json'):
+    def fit(self, textf):
         """
             Fit as per the data
         """
@@ -228,11 +259,22 @@ class TextUtility(object):
                                                  item not in self.stop_words):
                     words_.append(item)
         if not words_:
-            words_.append('UNK')
+            words_.append('<UNK>')
         return words_
 
     def _update_vocabulary(self, word):
         self.vocabulary[word] = len(self.vocabulary)
+
+    def sort_vocabulary(self):
+        """
+            Sort vocabulary in lexiographic order
+        """
+        keys = list(self.vocabulary.keys())
+        keys.sort()
+        keys_ = ['<PAD>', '<UNK>']
+        keys_.extend(keys)
+        keys = keys_
+        self.vocabulary = dict(zip(keys, range(len(keys))))
 
     def _vectorize(self, parsed_sentence):
         vector = []
@@ -250,14 +292,15 @@ class TextUtility(object):
             len(self.vocabulary))
         num_docs = count_mat.shape[0]
         updated_vocabulary = {}
-        idx = 1
+        idx = 0
         for key, val in self.vocabulary.items():
             if doc_freq[val] // num_docs <= self.max_df and doc_freq[val] >= self.min_df:
                 updated_vocabulary[key] = idx
                 idx += 1
             else:
                 self.stop_words.add(key)
-        self.vocabulary = sort_vocabulary(updated_vocabulary)
+        self.vocabulary = updated_vocabulary
+        self.sort_vocabulary()
 
     def transform(self, textf):
         """
