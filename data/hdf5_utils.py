@@ -1,11 +1,15 @@
-# Read text data and write into HDF5 format
+"""
+        Read multi-label data and write into HDF5 format
+"""
 import h5sparse
 import sys
 import data_utils
 import numpy as np
 from scipy.sparse import csr_matrix
 
-def read(fname):
+__author__ = 'KD'
+
+def read_data(fname):
     """
         Read the h5py file and return features, labels and attributes 
     """
@@ -17,7 +21,7 @@ def read(fname):
     return features, labels, num_samples, num_feat, num_labels
 
 
-def create(in_file, out_file):
+def write_data(in_file, out_file):
     """
         Read data from input file and write to sparse hdf5 file
         Format: 
@@ -29,7 +33,6 @@ def create(in_file, out_file):
     attributes = np.array(
         [num_samples, num_feat, num_labels], dtype=np.int).reshape(1, 3)
     attributes = csr_matrix(attributes)
-    print(attributes)
     labels = data_utils.binarize_labels(labels, num_labels)
     with h5sparse.File(out_file) as h5f:
         h5f.create_dataset('data/attributes', data=attributes)

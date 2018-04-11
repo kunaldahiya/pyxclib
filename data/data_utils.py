@@ -92,7 +92,7 @@ def read_sparse_file(filename, header=True):
             num_samples, num_labels = int(num_samples), int(num_labels)
         else:
             NotImplementedError("Not yet implemented!")
-        data = lil_matrix((num_samples, num_labels), dtype=np.float)
+        data = lil_matrix((num_samples, num_labels), dtype=np.float32)
         line_num = 0
         for line in f:
             temp = line.split(' ')
@@ -151,7 +151,7 @@ def binarize_labels(labels, num_classes):
             csr_matrix with positive labels as 1
     '''
     temp = lil_matrix((len(labels), num_classes), dtype=np.int)
-    for i in range(len(labels)):
-        for item in labels[i]:
-            temp[i, int(item)] = 1
+    for idx, _lb in enumerate(labels):
+        for item in _lb:
+            temp[idx, int(item)] = 1
     return temp.tocsr()
