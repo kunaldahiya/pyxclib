@@ -1,82 +1,92 @@
+"""
+    Compute evaluation statistics. 
+"""
+
+__author__='X'
+
 import numpy as np
-from scipy.sparse import csr_matrix, lil_matrix, find, spdiags
-import math
-import pdb
 
-def rank_sparse(X):
-    '''
-        Rank of each element in decreasing order (per-row)
-        Ranking will start from one (with zero at zero entries)
-    '''
-    def sortCoo(X):
-        tuples = zip(X.row, X.col, X.data)
-        return sorted(tuples, key=lambda x: (x[0], x[2]), reverse=True)
-    temp = sortCoo(X.tocoo())
-    rank_matrix = lil_matrix(X.shape, dtype=np.int)
-    prev_row = X.shape[0]+1
-    curr_rank = 0
-    for item in temp:
-        row_changed = prev_row!=item[0]
-        if row_changed:
-            prev_row = item[0]
-            curr_rank = 1
-        rank_matrix[item[0], item[1]] = curr_rank
-        curr_rank +=1
-    return rank_matrix.tocsr()
-
+def format(*args, decimal_points='%0.2f'):
+    out = []
+    for vals in args:
+        out.append(','.join(list(map(lambda x: decimal_points%(x*100), vals))))
+    return '\n'.join(out)
 
 class Metrices(object):
-    def __init__(self, labels, predicted_labels):
-        self.labels = labels
-        self.predicted_labels = predicted_labels
-        assert self.predicted_labels.shape == self.labels.shape
-        self.num_instances, self.num_labels = predicted_labels.shape
+    def __init__(self, true_labels, remove_invalid=False):
+        """
+            Args:
+                true_labels: csr_matrix: true labels with shape (num_instances, num_labels)
+                remove_invalid: boolean: remove samples without any true label
+        """
+        self.true_labels = true_labels
+        self.num_instances, self.num_labels = true_labels.shape
+        self.remove_invalid = remove_invalid
+        self.valid_idx = None
+        if self.remove_invalid:
+            samples = np.sum(self.true_labels,axis=1)
+            self.valid_idx = np.arange(self.num_instances).reshape(-1,1)[samples>0]
+            self.true_labels = self.true_labels[self.valid_idx]
+            self.num_instances = self.valid_idx.size
+        self.ndcg_denominator = np.cumsum(1/np.log2(np.arange(1,self.num_labels+1)+1)).reshape(-1,1)
+        self.labels_documents = np.ravel(np.sum(self.true_labels, axis=1))
+        self.labels_documents[self.labels_documents==0]=1
 
-    def precision(self, K):
+    def _rank_sparse(self, X, K):
+        """
+            Args:
+                X: csr_matrix: sparse score matrix with shape (num_instances, num_labels)
+                K: int: Top-k values to rank
+            Returns: 
+                predicted: np.ndarray: (num_instances, K) top-k ranks
+        """
+        total = X.shape[0]
+        predicted = np.zeros((total, K), np.int32)
+        for i, x in enumerate(X):
+            index = x.__dict__['indices']
+            data = x.__dict__['data']
+            predicted[i] = index[np.argsort(-data)[0:K]]
+        return predicted
+
+    def eval(self, predicted_labels, K=5):
+        """
+            Args:
+                predicted_labels: csr_matrix: predicted labels with shape (num_instances, num_labels)
+                K: int: compute values from 1-5
+        """
+        if self.valid_idx is not None:
+            predicted_labels = predicted_labels[self.valid_idx]
+        assert predicted_labels.shape == self.true_labels.shape
+        predicted_labels = self._rank_sparse(predicted_labels, K)
+        prec = self.precision(predicted_labels, K)
+        ndcg = self.nDCG(predicted_labels, K)
+        return prec, ndcg
+
+    def precision(self, predicted_labels, K):
         """
             Compute precision for 1-K
         """
-        rank_matrix = rank_sparse(self.predicted_labels)
-        prec = []
-        for k in range(1, K+1):
-            temp = self.predicted_labels.copy()
-            temp[rank_matrix>k] = 0
-            temp = temp.multiply(self.labels)
-            temp.eliminate_zeros()
-            temp[temp!=0] = 1
-            precision_at_k = np.array(temp.sum(axis=1))
-            precision_at_k = precision_at_k/k
-            prec.append(np.mean(precision_at_k))
-        return prec
+        p= np.zeros((1,K))
+        total_samples=self.true_labels.shape[0]
+        ids = np.arange(total_samples).reshape(-1,1)
+        p=np.sum(self.true_labels[ids, predicted_labels],axis=0)
+        p = p/(total_samples)
+        p = np.cumsum(p)/(np.arange(K)+1)
+        return np.ravel(p)
 
-    def nDCG(self, K):
+    def nDCG(self, predicted_labels, K):
         """
             Compute nDCG for 1-K
         """
-        rank_matrix = rank_sparse(self.predicted_labels)
-        num_samples, num_labels = self.labels.shape
-        ndcg = []
-        wts = 1/np.log2(np.arange(1, num_labels+1)+1)
-        cum_wts = np.cumsum(wts)
-        
-        rows, cols, vals = find(rank_matrix)
-        temp = 1 / np.log2(vals + 1)
-        coeff_mat = csr_matrix((temp, (rows, cols)), shape=(num_samples, num_labels), dtype=np.float32)
-        for k in range(1, K+1):
-            temp = coeff_mat.copy()
-            temp[rank_matrix>k] = 0
-            temp = temp.multiply(self.labels)
-            temp.eliminate_zeros()            
-            num = np.array(temp.sum(axis=1))
-            count = np.array(self.labels.sum(axis=1))
-            count = np.minimum(count, k)
-            count[count==0] = 1
-            den = cum_wts[count-1]
-            ndcg.append(np.mean(num/den))
-        return ndcg
+        ndcg= np.zeros((1, K))
+        total_samples=self.true_labels.shape[0]
+        ids = np.arange(total_samples).reshape(-1,1)
+        dcg= self.true_labels[ids, predicted_labels]/(np.log2(np.arange(1,K+1)+1)).reshape(1,-1)
+        dcg = np.cumsum(dcg,axis=1)
+        denominator = self.ndcg_denominator[self.labels_documents-1]
+        for k in range(K):
+            temp = denominator.copy()
+            temp[denominator>self.ndcg_denominator[k]] = self.ndcg_denominator[k]
+            ndcg[0, k] = np.mean(dcg[:, k]/temp)
+        return np.ravel(ndcg)
 
-    
-    def compute_all(self, K=5):
-        precision_at_k = self.precision(K)
-        ndcg_at_k = self.nDCG(K)
-        print(precision_at_k, ndcg_at_k)
