@@ -70,7 +70,7 @@ class Metrices(object):
         total_samples=self.true_labels.shape[0]
         ids = np.arange(total_samples).reshape(-1,1)
         p=np.sum(self.true_labels[ids, predicted_labels],axis=0)
-        p = p/(total_samples)
+        p = p*1.0/(total_samples)
         p = np.cumsum(p)/(np.arange(K)+1)
         return np.ravel(p)
 
