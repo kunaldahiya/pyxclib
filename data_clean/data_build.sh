@@ -22,13 +22,13 @@ Generates following files in $1"data/"
 Train
 	1) train.txt -- contains encoded data for RNN
 	2) train_build.txt -- contains encoded data for Bag of words
-	3) trn_lbl_mat.txt -- contains raw data where each paragraph is delimited by " . "
+	3) trn_lbl_mat.txt -- contains raw data where each line in the document is delimited by " . "
 	4) trn_ft.txt -- contains labels data with headers (<Total docs> <Total labels>)
 
 Test
 	1) test.txt -- contains encoded data for RNN
 	2) test_build.txt -- contains encoded data for Bag of words
-	3) tst_lbl_mat.txt -- contains raw data where each paragraph is delimited by " . "
+	3) tst_lbl_mat.txt -- contains raw data where each line in the document is delimited by " . "
 	4) tst_ft.txt -- contains labels data with headers (<Total docs> <Total labels>)
 '
 
