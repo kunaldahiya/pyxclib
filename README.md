@@ -1,2 +1,2 @@
-# xc_tools
+# xctools
 Tools for multi-label classification problems.
