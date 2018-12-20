@@ -6,11 +6,11 @@ __author__='X'
 
 import numpy as np
 
-def format(*args, decimal_points='%0.2f'):
-    out = []
-    for vals in args:
-        out.append(','.join(list(map(lambda x: decimal_points%(x*100), vals))))
-    return '\n'.join(out)
+def format(*args):
+	out = []
+	for vals in args:
+		out.append(','.join(list(map(lambda x: "%0.2f" % (x*100), vals))))
+	return '\n'.join(out)
 
 class Metrices(object):
     def __init__(self, true_labels, remove_invalid=False):
