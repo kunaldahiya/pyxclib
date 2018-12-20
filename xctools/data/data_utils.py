@@ -5,9 +5,10 @@
 import numpy as np
 from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.datasets import load_svmlight_file, dump_svmlight_file
+from sklearn.preprocessing import normalize
 import operator
 
-__author__ = 'KD'
+__author__ = 'X'
 
 def read_split_file(split_fname):
     '''
@@ -64,21 +65,18 @@ def write_sparse_file(labels, filename, header=True):
             filename: str: output file
             header: bool: include header or not
     '''
+    if not isinstance(labels, csr_matrix):
+        labels=labels.tocsr()
     with open(filename, 'w') as f:
         if header:
-            f.write(str(labels.shape[0])+" "+str(labels.shape[1])+"\n")
-        non_zero_rows, non_zero_cols = labels.nonzero()
-        temp=''
-        for i in range(len(non_zero_rows)):
-            try:
-                is_last_element = non_zero_rows[i] != non_zero_rows[i+1]
-            except IndexError:
-                is_last_element = True
-            temp = temp + str(non_zero_cols[i])+':'+str(labels[non_zero_rows[i], non_zero_cols[i]])+" "
-            if is_last_element:
-                f.write(temp.rstrip(" ")+"\n")
-                temp=''
+            print("%d %d"%(labels.shape[0],labels.shape[1]),file=f)
+        for y in labels:
+            idx = y.__dict__['indices']
+            val = y.__dict__['data']
+            sentence = ' '.join(['%d:%f'%(x,v) for x,v in zip(idx,val)])
+            print(sentence,file=f)
 
+            
 def read_sparse_file(filename, header=True):
     '''
         Args:
@@ -88,22 +86,16 @@ def read_sparse_file(filename, header=True):
     '''
     with open(filename, 'r') as f:
         if header:
-            num_samples, num_labels = f.readline().rstrip('\n').split(' ')
-            num_samples, num_labels = int(num_samples), int(num_labels)
+            num_samples, num_labels = map(int,f.readline().strip().split(' '))
         else:
             NotImplementedError("Not yet implemented!")
         data = lil_matrix((num_samples, num_labels), dtype=np.float32)
-        line_num = 0
-        for line in f:
-            temp = line.split(' ')
-            for item in temp:
-                item2 = item.split(':')
-                try:
-                    data[line_num, int(item2[0])] = float(item2[1])
-                except IndexError:
-                    pass
-                #print("Column error in row: ", line_num)
-            line_num+=1
+        for i,line in enumerate(f):
+            temp = [x for x in list(map(lambda x:x.split(':') ,line.strip().split(' '))) if x[0] !='']
+            if len(temp)>0:
+                idx = np.asarray(list(map(lambda x: np.int32(x[0]),temp)))
+                val = np.asarray(list(map(lambda x: np.float32(x[1]),temp)))
+                data[i, idx] = val
     return data.tocsr()
 
 def write_data(filename, features, labels):
@@ -155,3 +147,27 @@ def binarize_labels(labels, num_classes):
         for item in _lb:
             temp[idx, int(item)] = 1
     return temp.tocsr()
+
+
+def tuples_to_csr(_input, _shape):
+    """
+        Convert a list of list of tuples to csr matrix
+        Args:
+        _input: list
+        _shape: tuple: shape of output matrix
+        Returns:
+        output: csr_matrix: matrix with given data and shape
+    """
+    rows = []
+    cols = []
+    vals = []
+    for idx, item in enumerate(_input):
+        if len(item)>0:
+            row+=[idx]*len(item)
+            cols+=list(map(lambda x: x[0],item))
+            vals+=list(map(lambda x: x[1],item))
+    return csr_matrix(np.array(vals), (np.array(rows), np.array(cols)), shape=_shape)
+
+def normalize_data(features, norm='l2'):
+    features = normalize(features, norm='l2', copy=True)
+    return features 

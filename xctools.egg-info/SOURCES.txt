@@ -16,7 +16,7 @@ xctools/embeddings/gen_embeddings.py
 xctools/embeddings/word_embedding.py
 xctools/evaluation/__init__.py
 xctools/evaluation/evaluate.py
-xctools/evaluation/xml_metrics.py
+xctools/evaluation/xc_metrics.py
 xctools/text/__init__.py
 xctools/text/run_vec_tfidf.py
 xctools/text/text_utils.py
