@@ -99,7 +99,7 @@ class Metrices(object):
 		p=np.zeros((1, K))
 		total_samples=self.true_labels.shape[0]
 		ids=np.arange(total_samples).reshape(-1, 1)
-		p=np.sum(self.true_labels[ids, predicted_labels], axis = 0)
+		p=np.sum(self.true_labels_padded[ids, predicted_labels], axis = 0)
 		p=p*1.0/(total_samples)
 		p=np.cumsum(p)/(np.arange(K)+1)
 		return np.ravel(p)
@@ -111,7 +111,7 @@ class Metrices(object):
 		ndcg=np.zeros((1, K))
 		total_samples=self.true_labels.shape[0]
 		ids=np.arange(total_samples).reshape(-1, 1)
-		dcg=self.true_labels[ids, predicted_labels] /(
+		dcg=self.true_labels_padded[ids, predicted_labels] /(
 			np.log2(np.arange(1, K+1)+1)).reshape(1, -1)
 		dcg=np.cumsum(dcg, axis = 1)
 		denominator=self.ndcg_denominator[self.labels_documents-1]
