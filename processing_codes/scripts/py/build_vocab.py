@@ -23,7 +23,7 @@ with open(root+'temp_X.txt','r',encoding='latin-1') as f:
 	for i,key in enumerate(vocabs):
 		print(f'{key} {idf[vectorizer.vocabulary_[key]]}',file=vocab_file)
 
-	for extra in ['UNK','</s>','<s>']:
+	for extra in ['UNK','</s>','<s>','<dot>']:
 		print(f'{extra} 0.0',file=vocab_file)
 
 vocab_file.close()

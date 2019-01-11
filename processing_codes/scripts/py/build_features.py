@@ -45,8 +45,7 @@ with open(root_a,'r',encoding='latin-1') as ftr,open(root_b,'r',encoding='latin-
 		for word in line.split(' '):
 			k = b"%s"%(word.encode('latin-1'))
 			if k == b'.':
-				sentence.append("%d:%f"%vocab[b'</s>'])
-				sentence.append("%d:%f"%vocab[b'<s>'])
+				sentence.append("%d:%f"%vocab[b'<dot>'])
 			else:
 				idx_word = vocab.get(k,UNK)
 				count+=idx_word[1]
