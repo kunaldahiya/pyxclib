@@ -1,0 +1,15 @@
+Metadata-Version: 1.1
+Name: xctools
+Version: 0.9
+Summary: A xmlc tools and evalution package for python
+Home-page: https://github.com/kunaldahiya/xctools
+Author: dx
+Author-email: kunnalsdahiya@gmail.com/anshumitts@gmail.com
+License: UNKNOWN
+Description: # xctools
+        Tools for multi-label classification problems.
+        
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent

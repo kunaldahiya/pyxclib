@@ -4,10 +4,10 @@
 
 Created by XC group
 
-$1 -> 	Path to folder for the raw data to be processed
+$1 -> 	Dataset
 $2 -> 	1, to build bag of words features else give 0
 $3 ->	1, remove empty lines (containing 0 labels or 0 words)
-$4 ->	1, when labels for test and train are in files test_raw.txt and train_raw.txt else give 0
+$4 ->	1, when labels for test and train are in files test.txt and train.txt else give 0
 $5 ->   1, when data for each doc is confined within <text> </text> else 0
 
 complete_doc.txt ->	contains single file of raw data for both test and train in format 
@@ -45,11 +45,14 @@ BUILDVOCAB=$(pwd)/scripts/py/build_vocab.py
 FEATURES=$(pwd)/scripts/py/build_features.py
 BUILDSTD=$(pwd)/scripts/py/build_std_data.py
 
-ROOT=$1'data/'
+work_dir="${HOME}/scratch/lab/Workspace"
+
+datasets="${work_dir}/data/${1}/"
+ROOT=$datasets'data/'
 mkdir -p $ROOT
-X=$1'complete_doc.txt'
-SPLIT=$1'split.0.txt'
-LABELS=$1'labels.txt'
+X=$datasets'complete_doc.txt'
+SPLIT=$datasets'split.0.txt'
+LABELS=$datasets'labels.txt'
 TLOWX=$ROOT'low_X.txt'
 TEMPX=$ROOT'temp_X.txt'
 TEMPLB=$ROOT'temp_lb.txt'
@@ -89,17 +92,17 @@ if [ $4 -eq 0 ]
 	build_labels $TESTLB
 
 else
-	tail -n +2 $1'train_raw.txt'| awk -F ' ' '{print $1}'> $TRAINLB
-	tail -n +2 $1'test_raw.txt'| awk -F ' ' '{print $1}'> $TESTLB
+	tail -n +2 $datasets'train.txt'| awk -F ' ' '{print $1}'> $TRAINLB
+	tail -n +2 $datasets'test.txt'| awk -F ' ' '{print $1}'> $TESTLB
 	paste -d "\t" $SPLIT $TEMPX | awk -F '\t' '{if($1==0) {print $2 > "'$TRAINFT'"} else {print $2 > "'$TESTFT'"}}'
 	
 	echo $(get_lines $TRAINLB)
-	echo -e $(get_lines $TRAINLB) $(head -n 1 ${1}'train_raw.txt'| awk -F ' ' '{print $3}')>temp.txt
+	echo -e $(get_lines $TRAINLB) $(head -n 1 $datasets'train.txt'| awk -F ' ' '{print $3}')>temp.txt
 	cat $TRAINLB >> temp.txt
 	mv temp.txt $TRAINLB
 
 	echo $(get_lines $TESTLB)
-	echo -e $(get_lines $TESTLB) $(head -n 1 ${1}'test_raw.txt'| awk -F ' ' '{print $3}')>temp.txt
+	echo -e $(get_lines $TESTLB) $(head -n 1 $datasets'test.txt'| awk -F ' ' '{print $3}')>temp.txt
 	cat $TESTLB >> temp.txt
 	mv temp.txt $TESTLB
 
