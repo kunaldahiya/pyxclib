@@ -9,7 +9,6 @@ setuptools.setup(
     author="dx",
     author_email="kunnalsdahiya@gmail.com/anshumitts@gmail.com",
     description="A xmlc tools and evalution package for python",
-    long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/kunaldahiya/xctools",
     packages=setuptools.find_packages(),
@@ -17,5 +16,6 @@ setuptools.setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
-    ],
+    ]
 )
+
