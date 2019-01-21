@@ -98,8 +98,29 @@ def read_sparse_file(filename, header=True):
                 data[i, idx] = val
     return data.tocsr()
 
+            
+# def read_sparse_file(filename, header=True):
+#     '''
+#         Args:
+#             input file in libsvm format
+#         Returns: 
+#             CSR matrix
+#     '''
+#     with open(filename, 'r') as f:
+#         if header:
+#             num_samples, num_labels = map(int,f.readline().strip().split(' '))
+#         else:
+#             NotImplementedError("Not yet implemented!")
+#         data = lil_matrix((num_samples, num_labels), dtype=np.float32)
+#         for i,line in enumerate(f):
+#             temp = [x for x in list(map(lambda x:x.split(':') ,line.strip().split(' '))) if x[0] !='']
+#             if len(temp)>0:
+#                 idx = np.asarray(list(map(lambda x: np.int32(x[0]),temp)))
+#                 val = np.asarray(list(map(lambda x: np.float32(x[1]),temp)))
+#                 data[i, idx] = val
+#     return data.tocsr()
 
-def write_data(filename, features, labels, header=True):
+def write_data(filename, features, labels):
     '''
         Write data in sparse format
         Args:
@@ -108,17 +129,9 @@ def write_data(filename, features, labels, header=True):
             labels: csr_matix: labels matrix
 
     '''
-    if header:
-        with open(filename, 'w') as f:
-            out = "{} {} {}".format(
-                features.shape[0], features.shape[1], labels.shape[1])
-            print(out, file=f)
-        with open(filename, 'ab') as f:
-            dump_svmlight_file(features, labels, f, multilabel=True)
-    else:
-        with open(filename, 'wb') as f:
-            dump_svmlight_file(features, labels, f, multilabel=True)
-    
+    with open(filename, 'wb') as f:
+        dump_svmlight_file(features, labels, f, multilabel=True)
+
 def read_data(filename, header=True):
     '''
         Read data in sparse format

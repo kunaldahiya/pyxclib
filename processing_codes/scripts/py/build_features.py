@@ -34,7 +34,7 @@ with open(root_a,'r',encoding='latin-1') as ftr,open(root_b,'r',encoding='latin-
 	i=0
 	while i<nr:
 		count = 0
-		line = ftr.readline().strip()
+		line = ftr.readline().strip().encode('latin-1')
 		labels = ltr.readline().strip()
 		
 		if labels =='':
@@ -42,10 +42,11 @@ with open(root_a,'r',encoding='latin-1') as ftr,open(root_b,'r',encoding='latin-
 		
 		sentence = ["%d:%f"%vocab[b'<s>']]
 		
-		for word in line.split(' '):
-			k = b"%s"%(word.encode('latin-1'))
+		for word in line.split(b' '):
+			k = b"%s"%(word)
 			if k == b'.':
-				sentence.append("%d:%f"%vocab[b'<dot>'])
+				sentence.append("%d:%f"%vocab[b'</s>'])
+				sentence.append("%d:%f"%vocab[b'<s>'])
 			else:
 				idx_word = vocab.get(k,UNK)
 				count+=idx_word[1]

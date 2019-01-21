@@ -63,11 +63,12 @@ TESTLB=$ROOT'tst_lbl_mat.txt'
 VOCAB=$ROOT'VOCAB.txt'
 WORDS=$ROOT'words.txt'
 
-echo "CLEANING DATA"
-awk -F '->' '{print $2}' $X | perl $PREPROCESS >$TLOWX
+# echo "CLEANING DATA"
+# awk -F '->' '{print $2}' $X | perl $PREPROCESS >$TLOWX
+# # awk -F '->' '{print $0}' $X | perl $PREPROCESS >$TLOWX
 
-echo "USING NLTK TOKENIZER"
-python $TOKENIZER $TLOWX $TEMPX
+# echo "USING NLTK TOKENIZER"
+# python $TOKENIZER $TLOWX $TEMPX
 
 get_features(){
 	head -n 1 $1 | awk -F ' ' '{print $2}'
@@ -109,7 +110,7 @@ else
 fi
 
 echo "CREATING DATASET"
-python $BUILDVOCAB $ROOT '4'
+# python $BUILDVOCAB $ROOT '4'
 python $FEATURES $TRAINFT $TRAINLB $ROOT'train_X.txt' $VOCAB $3
 python $FEATURES $TESTFT $TESTLB $ROOT'test_X.txt' $VOCAB $3
 
