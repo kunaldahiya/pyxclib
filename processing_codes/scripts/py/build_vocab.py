@@ -3,8 +3,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from nltk.corpus import stopwords
 # 
 cachedStopWords = []
-# cachedStopWords+=stopwords.words("english") 
-# cachedStopWords+= '\' \" : ; , < > . ~ ` ! @ # ^ & * ( ) + = - _ { } [ ] '.split(' ')
+cachedStopWords+=stopwords.words("english") 
+cachedStopWords+= '\' \" : ; , < > . ~ ` ! @ # ^ & * ( ) + = - _ { } [ ] '.split(' ')
 
 root = sys.argv[1]
 min_df = int(sys.argv[2])

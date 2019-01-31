@@ -63,13 +63,6 @@ TESTLB=$ROOT'tst_lbl_mat.txt'
 VOCAB=$ROOT'VOCAB.txt'
 WORDS=$ROOT'words.txt'
 
-# echo "CLEANING DATA"
-# awk -F '->' '{print $2}' $X | perl $PREPROCESS >$TLOWX
-# # awk -F '->' '{print $0}' $X | perl $PREPROCESS >$TLOWX
-
-# echo "USING NLTK TOKENIZER"
-# python $TOKENIZER $TLOWX $TEMPX
-
 get_features(){
 	head -n 1 $1 | awk -F ' ' '{print $2}'
 }
@@ -86,13 +79,59 @@ build_labels(){
 
 if [ $4 -eq 0 ]
 	then
+	echo "CLEANING DATA"
+	awk -F '->' '{print $2}' $X | perl $PREPROCESS >$TLOWX
+	echo "USING NLTK TOKENIZER"
+	python $TOKENIZER $TLOWX $TEMPX
+	awk -F '->' '{print $2}' $X > $TEMPX
+
 	tail -n +2 $LABELS > $TEMPLB
 	head -n 1 $LABELS
 	paste -d "\t" $SPLIT $TEMPX $TEMPLB | awk -F '\t' '{if($1==0) {print $2 > "'$TRAINFT'"; print $3 > "'$TRAINLB'"} else {{print $2 > "'$TESTFT'"; print $3 > "'$TESTLB'"}}}'
 	build_labels $TRAINLB
 	build_labels $TESTLB
 
+elif [ $4 -eq 2 ]
+then
+	echo "Creating Complete corpus"
+	cat $datasets'/train_map.txt' $datasets'/test_map.txt' >$X
+	echo "CLEANING DATA"
+	awk -F '->' '{print $2}' $X | perl $PREPROCESS >$TLOWX
+	echo "USING NLTK TOKENIZER"
+	python $TOKENIZER $TLOWX $TEMPX
+	awk -F '->' '{print $2}' $X > $TEMPX
+
+	awk -F '->' '{print $2}' $datasets'train_map.txt' | perl $PREPROCESS > $datasets'temp_train.txt'
+	python $TOKENIZER $datasets'temp_train.txt' $TRAINFT
+	rm -rf $datasets'temp_train.txt'
+	
+	awk -F '->' '{print $2}' $datasets'test_map.txt' | perl $PREPROCESS > $datasets'temp_test.txt'
+	python $TOKENIZER $datasets'temp_test.txt' $TESTFT
+	rm -rf $datasets'temp_test.txt'
+
+	tail -n +2 $datasets'train.txt'| awk -F ' ' '{print $1}'> $TRAINLB
+	tail -n +2 $datasets'test.txt'| awk -F ' ' '{print $1}'> $TESTLB
+
+	echo $(get_lines $TRAINLB)
+	echo -e $(get_lines $TRAINLB) $(head -n 1 $datasets'train.txt'| awk -F ' ' '{print $3}')>temp.txt
+	cat $TRAINLB >> temp.txt
+	mv temp.txt $TRAINLB
+
+	echo $(get_lines $TESTLB)
+	echo -e $(get_lines $TESTLB) $(head -n 1 $datasets'test.txt'| awk -F ' ' '{print $3}')>temp.txt
+	cat $TESTLB >> temp.txt
+	mv temp.txt $TESTLB
+
+
 else
+	echo "Here"
+	echo "CLEANING DATA"
+	# awk -F '->' '{print $2}' $X | perl $PREPROCESS >$TLOWX
+	cat $X | perl $PREPROCESS >$TLOWX
+	# exit
+	echo "USING NLTK TOKENIZER"
+	python $TOKENIZER $TLOWX $TEMPX
+
 	tail -n +2 $datasets'train.txt'| awk -F ' ' '{print $1}'> $TRAINLB
 	tail -n +2 $datasets'test.txt'| awk -F ' ' '{print $1}'> $TESTLB
 	paste -d "\t" $SPLIT $TEMPX | awk -F '\t' '{if($1==0) {print $2 > "'$TRAINFT'"} else {print $2 > "'$TESTFT'"}}'
@@ -110,7 +149,7 @@ else
 fi
 
 echo "CREATING DATASET"
-# python $BUILDVOCAB $ROOT '4'
+python $BUILDVOCAB $ROOT '4'
 python $FEATURES $TRAINFT $TRAINLB $ROOT'train_X.txt' $VOCAB $3
 python $FEATURES $TESTFT $TESTLB $ROOT'test_X.txt' $VOCAB $3
 
@@ -126,11 +165,11 @@ awk -F ' ' '{print $1}' <$VOCAB > $WORDS
 head -n 1 $ROOT'train.txt'
 head -n 1 $ROOT'test.txt'
 
-rm -rf $TEMPX
-rm -rf $TEMPLB
-rm -rf $ROOT'train_X.txt'
-rm -rf $ROOT'test_X.txt'
-rm -rf $TLOWX
+# rm -rf $TEMPX
+# rm -rf $TEMPLB
+# rm -rf $ROOT'train_X.txt'
+# rm -rf $ROOT'test_X.txt'
+# rm -rf $TLOWX
 # rm -rf $TRAINFT
 # rm -rf $TESTFT
 # rm -rf $TRAINLB
