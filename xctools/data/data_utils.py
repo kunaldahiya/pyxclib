@@ -89,14 +89,19 @@ def read_sparse_file(filename, header=True):
             num_samples, num_labels = map(int,f.readline().strip().split(' '))
         else:
             NotImplementedError("Not yet implemented!")
-        data = lil_matrix((num_samples, num_labels), dtype=np.float64)
+        row = []
+        col = []
+        data = []
         for i,line in enumerate(f):
-            temp = [x for x in list(map(lambda x:x.split(':') ,line.strip().split(' '))) if x[0] !='']
-            if len(temp)>0:
-                idx = np.asarray(list(map(lambda x: np.int64(x[0]),temp)))
-                val = np.asarray(list(map(lambda x: np.float64(x[1]),temp)))
-                data[i, idx] = val
-    return data.tocsr()
+            idx,val = **zip(x for x in list(map(lambda x:x.split(':') ,line.strip().split(' '))) if x[0] !='')
+            if len(idx)>0:
+                col+= idx
+                row+=[i]*len(idx)
+                data+= val
+    data = list(map(np.float32,data))
+    row = list(map(np.int32,row))
+    col = list(map(np.int32,col))
+    return csr_matrix((data,(row,col)),copy=False)
 
 
 def write_data(filename, features, labels, header=True):

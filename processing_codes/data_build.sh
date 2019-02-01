@@ -77,6 +77,12 @@ build_labels(){
 	mv temp.txt $1
 }
 
+clean_text(){
+	echo "USING NLTK TOKENIZER"
+	python -u $TOKENIZER $1 $2
+	# cp $1 $2
+}
+
 if [ $4 -eq 0 ]
 	then
 	echo "CLEANING DATA"
@@ -97,17 +103,15 @@ then
 	cat $datasets'/train_map.txt' $datasets'/test_map.txt' >$X
 	echo "CLEANING DATA"
 	awk -F '->' '{print $2}' $X | perl $PREPROCESS >$TLOWX
-	echo "USING NLTK TOKENIZER"
-	python $TOKENIZER $TLOWX $TEMPX
-	awk -F '->' '{print $2}' $X > $TEMPX
+	clean_text $TLOWX $TEMPX
 
-	awk -F '->' '{print $2}' $datasets'train_map.txt' | perl $PREPROCESS > $datasets'temp_train.txt'
-	python $TOKENIZER $datasets'temp_train.txt' $TRAINFT
-	rm -rf $datasets'temp_train.txt'
+	awk -F '->' '{print $2}' $datasets'train_map.txt' | perl $PREPROCESS > $datasets'temp.txt'
+	clean_text $datasets'temp.txt' $TRAINFT
+	rm -rf $datasets'temp.txt'
 	
-	awk -F '->' '{print $2}' $datasets'test_map.txt' | perl $PREPROCESS > $datasets'temp_test.txt'
-	python $TOKENIZER $datasets'temp_test.txt' $TESTFT
-	rm -rf $datasets'temp_test.txt'
+	awk -F '->' '{print $2}' $datasets'test_map.txt' | perl $PREPROCESS > $datasets'temp.txt'
+	clean_text $datasets'temp.txt' $TESTFT
+	rm -rf $datasets'temp.txt'
 
 	tail -n +2 $datasets'train.txt'| awk -F ' ' '{print $1}'> $TRAINLB
 	tail -n +2 $datasets'test.txt'| awk -F ' ' '{print $1}'> $TESTLB
@@ -128,9 +132,8 @@ else
 	echo "CLEANING DATA"
 	# awk -F '->' '{print $2}' $X | perl $PREPROCESS >$TLOWX
 	cat $X | perl $PREPROCESS >$TLOWX
-	# exit
 	echo "USING NLTK TOKENIZER"
-	python $TOKENIZER $TLOWX $TEMPX
+	clean_text $TLOWX $TEMPX
 
 	tail -n +2 $datasets'train.txt'| awk -F ' ' '{print $1}'> $TRAINLB
 	tail -n +2 $datasets'test.txt'| awk -F ' ' '{print $1}'> $TESTLB
