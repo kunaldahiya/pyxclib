@@ -271,10 +271,11 @@ class TextUtility(object):
         """
         keys = list(self.vocabulary.keys())
         keys.sort()
-        keys_ = ['<PAD>', '<UNK>']
-        keys_.extend(keys)
-        keys = keys_
-        self.vocabulary = dict(zip(keys, range(len(keys))))
+        # Keep <PAD> and <UNK> tokens in starting of vocabulary
+        keys.remove('<UNK>')
+        _keys = ['<PAD>', '<UNK>'] 
+        _keys.extend(keys)
+        self.vocabulary = dict(zip(_keys, range(len(keys))))
 
     def _vectorize(self, parsed_sentence):
         vector = []
