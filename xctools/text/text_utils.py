@@ -131,6 +131,7 @@ class TextUtility(object):
         self.max_df = max_df
         self.min_df = min_df
         self.vocabulary = vocabulary
+        self._vocabulary = set(vocabulary) # For faster search
         self.max_vocabulary_size = max_vocabulary_size
         self.remove_stopwords = remove_stopwords
         self.stop_words = ()
@@ -229,7 +230,7 @@ class TextUtility(object):
             # Assign a unique mapping for each word for train data
             if is_train:
                 for item2 in temp:
-                    if item2 not in self.vocabulary:
+                    if item2 not in self._vocabulary:
                         self._update_vocabulary(item2)
         del text
         return parsed_text
@@ -263,6 +264,7 @@ class TextUtility(object):
         return words_
 
     def _update_vocabulary(self, word):
+        self._vocabulary.add(word)
         self.vocabulary[word] = len(self.vocabulary)
 
     def sort_vocabulary(self):
