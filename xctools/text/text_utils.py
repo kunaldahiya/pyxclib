@@ -14,6 +14,7 @@ from nltk.corpus import stopwords
 
 __author__ = 'KD'
 
+
 def save_vectorized_text(fname, vectorized_text):
     """
         Save vectorized text as pickle file
@@ -21,12 +22,14 @@ def save_vectorized_text(fname, vectorized_text):
     with open(fname, 'wb') as fp:
         pickle.dump(vectorized_text, fp)
 
+
 def save_vocabulary(fname, vocabulary):
     """
         Save vocabulary as json file
     """
     with open(fname, 'w') as fp:
         json.dump(vocabulary, fp, indent=4)
+
 
 def save_mat(fname, sp_mat):
     """
@@ -132,7 +135,7 @@ class TextUtility(object):
         self.max_df = max_df
         self.min_df = min_df
         self.vocabulary = vocabulary
-        self._vocabulary = set(vocabulary) # For faster search
+        self._vocabulary = set(vocabulary)  # For faster search
         self.max_vocabulary_size = max_vocabulary_size
         self.remove_stopwords = remove_stopwords
         self.stop_words = ()
@@ -141,7 +144,7 @@ class TextUtility(object):
         self.min_word_length = min_word_length
 
     def _get_stopwords(self, fname='stopwords.txt'):
-        if fname != None and os.path.isfile(fname):
+        if fname is not None and os.path.isfile(fname):
             with open(fname) as f:
                 stop_words = f.readlines()
             self.stop_words = set([item.rstrip("\n") for item in stop_words])
@@ -174,13 +177,13 @@ class TextUtility(object):
             Save the model
         """
         model = {
-            'max_df' : self.max_df,
-            'min_df' : self.min_df,
-            'vocabulary' : self.vocabulary,
-            'max_vocabulary_size' : self.max_vocabulary_size,
-            'remove_stopwords' : self.remove_stopwords,
-            'stop_words' : self.stop_words,
-            'min_word_length' : self.min_word_length
+            'max_df': self.max_df,
+            'min_df': self.min_df,
+            'vocabulary': self.vocabulary,
+            'max_vocabulary_size': self.max_vocabulary_size,
+            'remove_stopwords': self.remove_stopwords,
+            'stop_words': self.stop_words,
+            'min_word_length': self.min_word_length
         }
         with open(fname, 'wb') as fp:
             pickle.dump(model, fp)
@@ -212,12 +215,12 @@ class TextUtility(object):
         sentence = re.sub(r"\)", " \) ", sentence)
         sentence = re.sub(r"\?", " \? ", sentence)
         sentence = re.sub(r"\s{2,}", " ", sentence)
-        #sentence = re.sub(r'\d+', '', sentence)
+        # sentence = re.sub(r'\d+', '', sentence)
         return sentence.strip().lower()
 
     def _parse_text(self, textf, is_train=False, progress_step=50000):
         self.log.info("Parsing given text!")
-        with open(textf,encoding='latin') as f:
+        with open(textf, encoding='latin') as f:
             text = f.readlines()
         parsed_text = []
         total_documents = len(text)
@@ -274,11 +277,11 @@ class TextUtility(object):
         """
         keys = list(self.vocabulary.keys())
         keys.sort()
-        keys_ = ['<PAD>', '<UNK>']
+        # Keep <PAD> and <UNK> tokens in starting of vocabulary
         keys.remove('<UNK>')
-        keys_.extend(keys)
-        keys = keys_
-        self.vocabulary = dict(zip(keys, range(len(keys))))
+        _keys = ['<PAD>', '<UNK>'] 
+        _keys.extend(keys)
+        self.vocabulary = dict(zip(_keys, range(len(keys))))
 
     def _vectorize(self, parsed_sentence):
         vector = []
