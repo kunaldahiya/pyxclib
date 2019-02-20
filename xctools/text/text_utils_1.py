@@ -132,6 +132,7 @@ class TextUtility(object):
         self.max_df = max_df
         self.min_df = min_df
         self.vocabulary = vocabulary
+        self._vocabulary = set(vocabulary) # For faster search
         self.max_vocabulary_size = max_vocabulary_size
         self.remove_stopwords = remove_stopwords
         self.stop_words = ()
@@ -230,7 +231,7 @@ class TextUtility(object):
             # Assign a unique mapping for each word for train data
             if is_train:
                 for item2 in temp:
-                    if item2 not in self.vocabulary:
+                    if item2 not in self._vocabulary:
                         self._update_vocabulary(item2)
         del text
         return parsed_text
@@ -264,6 +265,7 @@ class TextUtility(object):
         return words_
 
     def _update_vocabulary(self, word):
+        self._vocabulary.add(word)
         self.vocabulary[word] = len(self.vocabulary)
 
     def sort_vocabulary(self):
@@ -272,11 +274,19 @@ class TextUtility(object):
         """
         keys = list(self.vocabulary.keys())
         keys.sort()
+<<<<<<< HEAD
         keys_ = ['<PAD>', '<UNK>']
         keys.remove('<UNK>')
         keys_.extend(keys)
         keys = keys_
         self.vocabulary = dict(zip(keys, range(len(keys))))
+=======
+        # Keep <PAD> and <UNK> tokens in starting of vocabulary
+        keys.remove('<UNK>')
+        _keys = ['<PAD>', '<UNK>'] 
+        _keys.extend(keys)
+        self.vocabulary = dict(zip(_keys, range(len(keys))))
+>>>>>>> a09ac9631fc5253be6a86d3dcc5011d10045d7c6
 
     def _vectorize(self, parsed_sentence):
         vector = []
