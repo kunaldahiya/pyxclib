@@ -93,7 +93,7 @@ def read_sparse_file(filename, header=True):
         col = []
         data = []
         for i,line in enumerate(f):
-            idx,val = **zip(x for x in list(map(lambda x:x.split(':') ,line.strip().split(' '))) if x[0] !='')
+            idx,val = zip(*[x for x in list(map(lambda x:x.split(':') ,line.strip().split(' '))) if x[0] !=''])
             if len(idx)>0:
                 col+= idx
                 row+=[i]*len(idx)

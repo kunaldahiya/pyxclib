@@ -35,6 +35,7 @@ def save_mat(fname, sp_mat):
     with open(fname, 'wb') as fp:
         save_npz(fp, sp_mat)
 
+
 class TFIDF(object):
     """
         Compute TF-IDF features
@@ -215,7 +216,7 @@ class TextUtility(object):
 
     def _parse_text(self, textf, is_train=False, progress_step=50000):
         self.log.info("Parsing given text!")
-        with open(textf) as f:
+        with open(textf,encoding='latin') as f:
             text = f.readlines()
         parsed_text = []
         total_documents = len(text)
@@ -272,6 +273,7 @@ class TextUtility(object):
         keys = list(self.vocabulary.keys())
         keys.sort()
         keys_ = ['<PAD>', '<UNK>']
+        keys.remove('<UNK>')
         keys_.extend(keys)
         keys = keys_
         self.vocabulary = dict(zip(keys, range(len(keys))))

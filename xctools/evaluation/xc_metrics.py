@@ -43,7 +43,7 @@ class Metrices(object):
 		    [self.true_labels, sp.csr_matrix(np.zeros((self.num_instances, 1)))]).tocsr()
 		self.ndcg_denominator = np.cumsum(
 			1/np.log2(np.arange(1, self.num_labels+1)+1)).reshape(-1, 1)
-		self.labels_documents = np.ravel(np.sum(self.true_labels, axis=1))
+		self.labels_documents = np.ravel(np.array(np.sum(self.true_labels, axis=1),np.int32))
 		self.labels_documents[self.labels_documents == 0] = 1
 		self.inv_propensity_scores = None
 		self.batch_size = batch_size

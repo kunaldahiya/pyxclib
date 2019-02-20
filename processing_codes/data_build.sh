@@ -79,7 +79,7 @@ build_labels(){
 
 clean_text(){
 	echo "USING NLTK TOKENIZER"
-	python -u $TOKENIZER $1 $2
+	python -u $TOKENIZER $1 $2 $3 $4
 	# cp $1 $2
 }
 
@@ -87,10 +87,8 @@ if [ $4 -eq 0 ]
 	then
 	echo "CLEANING DATA"
 	awk -F '->' '{print $2}' $X | perl $PREPROCESS >$TLOWX
-	echo "USING NLTK TOKENIZER"
 	python $TOKENIZER $TLOWX $TEMPX
-	awk -F '->' '{print $2}' $X > $TEMPX
-
+	
 	tail -n +2 $LABELS > $TEMPLB
 	head -n 1 $LABELS
 	paste -d "\t" $SPLIT $TEMPX $TEMPLB | awk -F '\t' '{if($1==0) {print $2 > "'$TRAINFT'"; print $3 > "'$TRAINLB'"} else {{print $2 > "'$TESTFT'"; print $3 > "'$TESTLB'"}}}'
@@ -126,13 +124,11 @@ then
 	cat $TESTLB >> temp.txt
 	mv temp.txt $TESTLB
 
-
 else
 	echo "Here"
 	echo "CLEANING DATA"
-	# awk -F '->' '{print $2}' $X | perl $PREPROCESS >$TLOWX
-	cat $X | perl $PREPROCESS >$TLOWX
-	echo "USING NLTK TOKENIZER"
+	awk -F '->' '{print $2}' $X | perl $PREPROCESS >$TLOWX
+	# cat $X | perl $PREPROCESS >$TLOWX
 	clean_text $TLOWX $TEMPX
 
 	tail -n +2 $datasets'train.txt'| awk -F ' ' '{print $1}'> $TRAINLB
@@ -152,7 +148,7 @@ else
 fi
 
 echo "CREATING DATASET"
-python $BUILDVOCAB $ROOT '4'
+# python $BUILDVOCAB $ROOT '4'
 python $FEATURES $TRAINFT $TRAINLB $ROOT'train_X.txt' $VOCAB $3
 python $FEATURES $TESTFT $TESTLB $ROOT'test_X.txt' $VOCAB $3
 
@@ -168,10 +164,10 @@ awk -F ' ' '{print $1}' <$VOCAB > $WORDS
 head -n 1 $ROOT'train.txt'
 head -n 1 $ROOT'test.txt'
 
-# rm -rf $TEMPX
-# rm -rf $TEMPLB
-# rm -rf $ROOT'train_X.txt'
-# rm -rf $ROOT'test_X.txt'
+rm -rf $TEMPX
+rm -rf $TEMPLB
+rm -rf $ROOT'train_X.txt'
+rm -rf $ROOT'test_X.txt'
 # rm -rf $TLOWX
 # rm -rf $TRAINFT
 # rm -rf $TESTFT
