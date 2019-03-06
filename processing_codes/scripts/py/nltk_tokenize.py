@@ -5,7 +5,7 @@ from nltk.stem import WordNetLemmatizer
 from nltk.corpus import stopwords
 import re
 cachedStopWords = []
-cachedStopWords+=stopwords.words("english") 
+# cachedStopWords+=stopwords.words("english") 
 # cachedStopWords+= '\' \" : ; , < > . ~ ` ! @ # ^ & * ( ) + = - _ { } [ ] '.split(' ')
 
 lemmatizer = WordNetLemmatizer()
