@@ -89,6 +89,7 @@ def read_sparse_file(filename, header=True):
             num_samples, num_labels = map(int,f.readline().strip().split(' '))
         else:
             NotImplementedError("Not yet implemented!")
+<<<<<<< HEAD
         row = []
         col = []
         data = []
@@ -102,6 +103,17 @@ def read_sparse_file(filename, header=True):
     row = list(map(np.int32,row))
     col = list(map(np.int32,col))
     return csr_matrix((data,(row,col)),copy=False)
+=======
+        data = lil_matrix((num_samples, num_labels), dtype=np.float32)
+        for i, line in enumerate(f):
+            temp = [x for x in list(map(lambda x:x.split(
+                ':'), line.strip().split(' '))) if x[0] != '']
+            if len(temp) > 0:
+                idx = np.asarray(list(map(lambda x: np.int32(x[0]), temp)))
+                val = np.asarray(list(map(lambda x: np.float32(x[1]), temp)))
+                data[i, idx] = val
+    return data.tocsr()
+>>>>>>> 484fede819187024ff5940e2479043d0aeb585af
 
 
 def write_data(filename, features, labels, header=True):
