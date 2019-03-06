@@ -10,7 +10,6 @@ import operator
 
 __author__ = 'X'
 
-
 def read_split_file(split_fname):
     '''
         Return array of train/ test split
@@ -20,7 +19,6 @@ def read_split_file(split_fname):
             np.array: split
     '''
     return np.genfromtxt(split_fname, dtype=np.int)
-
 
 def _split_data(data, indices):
     """
@@ -68,15 +66,15 @@ def write_sparse_file(labels, filename, header=True):
             header: bool: include header or not
     '''
     if not isinstance(labels, csr_matrix):
-        labels = labels.tocsr()
+        labels=labels.tocsr()
     with open(filename, 'w') as f:
         if header:
-            print("%d %d"%(labels.shape[0], labels.shape[1]), file=f)
+            print("%d %d"%(labels.shape[0],labels.shape[1]),file=f)
         for y in labels:
             idx = y.__dict__['indices']
             val = y.__dict__['data']
-            sentence = ' '.join(['{}:{}'.format(x, v) for x, v in zip(idx, val)])
-            print(sentence, file=f)
+            sentence = ' '.join(['{}:{}'.format(x,v) for x,v in zip(idx,val)])
+            print(sentence,file=f)
 
 
 def read_sparse_file(filename, header=True):
@@ -88,20 +86,9 @@ def read_sparse_file(filename, header=True):
     '''
     with open(filename, 'r') as f:
         if header:
-            num_samples, num_labels = map(int, f.readline().strip().split(' '))
+            num_samples, num_labels = map(int,f.readline().strip().split(' '))
         else:
             NotImplementedError("Not yet implemented!")
-<<<<<<< HEAD
-        data = lil_matrix((num_samples, num_labels), dtype=np.float32)
-        for i, line in enumerate(f):
-            temp = [x for x in list(map(lambda x:x.split(
-                ':'), line.strip().split(' '))) if x[0] != '']
-            if len(temp) > 0:
-                idx = np.asarray(list(map(lambda x: np.int32(x[0]), temp)))
-                val = np.asarray(list(map(lambda x: np.float32(x[1]), temp)))
-                data[i, idx] = val
-    return data.tocsr()
-=======
         row = []
         col = []
         data = []
@@ -115,7 +102,6 @@ def read_sparse_file(filename, header=True):
     row = list(map(np.int32,row))
     col = list(map(np.int32,col))
     return csr_matrix((data,(row,col)),copy=False)
->>>>>>> 9381798304245b966b5501e7acbb163e15ab2e10
 
 
 def write_data(filename, features, labels, header=True):
@@ -137,8 +123,7 @@ def write_data(filename, features, labels, header=True):
     else:
         with open(filename, 'wb') as f:
             dump_svmlight_file(features, labels, f, multilabel=True)
-
-   
+    
 def read_data(filename, header=True):
     '''
         Read data in sparse format
@@ -157,13 +142,11 @@ def read_data(filename, header=True):
         if header:
             line = f.readline().decode('utf-8').rstrip("\n")
             line = line.split(" ")
-            num_samples, num_feat, num_labels = int(
-                line[0]), int(line[1]), int(line[2])
+            num_samples, num_feat, num_labels = int(line[0]), int(line[1]), int(line[2])
         else:
             num_samples, num_feat, num_labels = None, None, None
         features, labels = load_svmlight_file(f, multilabel=True)
     return features, labels, num_samples, num_feat, num_labels
-
 
 def binarize_labels(labels, num_classes):
     '''
@@ -193,13 +176,12 @@ def tuples_to_csr(_input, _shape):
     cols = []
     vals = []
     for idx, item in enumerate(_input):
-        if len(item) > 0:
-            row += [idx]*len(item)
-            cols += list(map(lambda x: x[0], item))
-            vals += list(map(lambda x: x[1], item))
+        if len(item)>0:
+            row+=[idx]*len(item)
+            cols+=list(map(lambda x: x[0],item))
+            vals+=list(map(lambda x: x[1],item))
     return csr_matrix(np.array(vals), (np.array(rows), np.array(cols)), shape=_shape)
-
 
 def normalize_data(features, norm='l2'):
     features = normalize(features, norm='l2', copy=True)
-    return features
+    return features 
