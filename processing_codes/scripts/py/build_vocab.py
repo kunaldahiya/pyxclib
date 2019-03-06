@@ -11,7 +11,7 @@ min_df = int(sys.argv[2])
 
 print(root+'temp_X.txt')
 print(min_df)
-vocab_file = open(root+'VOCAB.txt','w',encoding='latin-1')
+vocab_file = open(sys.argv[3],'w',encoding='latin-1')
 
 with open(root+'temp_X.txt','r',encoding='latin-1') as f:
 	vectorizer = TfidfVectorizer(min_df=min_df,encoding='latin-1',stop_words=cachedStopWords)
