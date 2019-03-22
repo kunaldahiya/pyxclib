@@ -4,13 +4,13 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="xctools",
-    version="0.9",
-    author="dx",
-    author_email="kunnalsdahiya@gmail.com/anshumitts@gmail.com",
-    description="A xmlc tools and evalution package for python",
+    name="xclib",
+    version="0.95",
+    author="X",
+    author_email="kunalsdahiya@gmail.com/anshumitts@gmail.com",
+    description="An extreme classification library for python",
     long_description_content_type="text/markdown",
-    url="https://github.com/kunaldahiya/xctools",
+    url="https://github.com/kunaldahiya/xclib",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
