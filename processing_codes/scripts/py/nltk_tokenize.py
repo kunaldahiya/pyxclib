@@ -52,5 +52,4 @@ def sentence_wise_no_tokenise():
 		for sentences in f:
 			print(clean_text(sentences.strip()), file=to)
 
-
-sentence_wise_no_tokenise()
+word_wise()

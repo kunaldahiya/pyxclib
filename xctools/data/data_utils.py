@@ -76,8 +76,7 @@ def write_sparse_file(labels, filename, header=True):
             sentence = ' '.join(['{}:{}'.format(x,v) for x,v in zip(idx,val)])
             print(sentence,file=f)
 
-
-def read_sparse_file(filename, header=True):
+def read_sparse_file(filename, header=True, force_shape=False):
     '''
         Args:
             input file in libsvm format
@@ -86,22 +85,28 @@ def read_sparse_file(filename, header=True):
     '''
     with open(filename, 'r') as f:
         if header:
-            num_samples, num_labels = map(int,f.readline().strip().split(' '))
+            num_samples, num_labels = map(int, f.readline().strip().split(' '))
         else:
             NotImplementedError("Not yet implemented!")
         row = []
         col = []
         data = []
-        for i,line in enumerate(f):
-            idx,val = zip(*[x for x in list(map(lambda x:x.split(':') ,line.strip().split(' '))) if x[0] !=''])
-            if len(idx)>0:
-                col+= idx
-                row+=[i]*len(idx)
-                data+= val
-    data = list(map(np.float32,data))
-    row = list(map(np.int32,row))
-    col = list(map(np.int32,col))
-    return csr_matrix((data,(row,col)),copy=False)
+        for i, line in enumerate(f):
+            idx, val = zip(
+                *[x for x in list(map(lambda x:x.split(':'), line.strip().split(' '))) if x[0] != ''])
+            if len(idx) > 0:
+                col += idx
+                row += [i]*len(idx)
+                data += val
+    data = list(map(np.float32, data))
+    row = list(map(np.int32, row))
+    col = list(map(np.int32, col))
+    if force_shape:
+        return csr_matrix((data, (row, col)), shape=(num_samples, num_labels), copy=False)
+    mat = csr_matrix((data, (row, col)), copy=False)
+    if mat.shape[0]!=num_samples or mat.shape[1]!=num_labels:
+        print("Warning: shape mismatch. expected ({},{}) found {}".format(num_samples, num_labels,mat.shape))
+    return mat
 
 
 def write_data(filename, features, labels, header=True):

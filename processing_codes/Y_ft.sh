@@ -23,7 +23,7 @@ datasets="${work_dir}/data/${1}"
 
 ROOT=$datasets'/Yfts'
 mkdir -p $ROOT
-X=$datasets'/NY.txt'
+X=$datasets'/Y.txt'
 TLOWX=$ROOT'/low_X.txt'
 Y=$ROOT'/Yf.txt'
 VocabY=$ROOT'/VocabY.txt'
@@ -34,5 +34,6 @@ clean_text(){
 
 
 perl $PREPROCESS $X > $TLOWX
+# cat $X > $TLOWX
 clean_text $ROOT $TLOWX $Y $VocabY
 # rm -rf $TLOWX
