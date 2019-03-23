@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 dir=$(python -m site --user-site)
-cp -r xclib "${dir}/xclib"
+rm -rf "${dir}/xclib"
+cp --verbose -rf xclib "${dir}/xclib"
