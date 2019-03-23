@@ -1,8 +1,7 @@
 # Example to evaluate
 import sys
-sys.path.append('../data')
-import xml_metrics
-import data_utils
+import xclibs.evaluation.xml_metrics
+import xclibs.data.data_utils
 from scipy.io import loadmat
 import numpy as np
 
