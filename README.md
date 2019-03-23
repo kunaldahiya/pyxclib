@@ -3,7 +3,7 @@ Tools for multi-label classification problems.
 
 ```bash
 git clone https://github.com/kunaldahiya/xclib.git
-cd xctools
+cd xclib
 sh run.sh
 ```
 Usage 
