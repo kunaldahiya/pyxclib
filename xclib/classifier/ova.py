@@ -45,13 +45,14 @@ class OVAClassifier(BaseClassifier):
         """
             Transposed classifiers before saving.
         """
+        # Bias is always a dense array
         if self.use_sparse:
             self.weight = sparse.vstack(
                 weights, format='csr', dtype=np.float32)
-            self.bias = sparse.vstack(biases, format='csr', dtype=np.float32)
+            self.bias = sparse.vstack(biases, format='csr', dtype=np.float32).toarray()
         else:
-            self.weight = np.vstack(weights).squeeze()
-            self.bias = np.vstack(biases)
+            self.weight = np.vstack(weights).astype(np.float32).squeeze()
+            self.bias = np.vstack(biases).astype(np.float32)
 
     def fit(self, data, model_dir, save_after=1):
         self.logger.info("Training!")
@@ -108,7 +109,7 @@ class OVAClassifier(BaseClassifier):
             pred = batch_data['data'][batch_data['ind']
                                       ] @ self.weight + self.bias
             utils._update_predicted(
-                start_idx, pred.toarray() if self.use_sparse else pred,
+                start_idx, pred.view(np.ndarray) if self.use_sparse else pred,
                 predicted_labels)
             start_idx += pred.shape[0]
         end_time = time.time()
