@@ -1,6 +1,5 @@
 import numpy as np
 from scipy.sparse import csr_matrix, hstack
-from xctools.data import data_utils
 from scipy.sparse import save_npz
 import os
 
