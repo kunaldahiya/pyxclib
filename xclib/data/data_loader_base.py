@@ -1,7 +1,7 @@
 import numpy as np
 import os
-from xctools.data import data_utils
-import libs.utils as utils
+from . import data_utils
+from ..utils import utils
 import sklearn.preprocessing
 import scipy.sparse as sparse
 import _pickle as pickle
