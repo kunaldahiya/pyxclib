@@ -85,6 +85,8 @@ class Slice(BaseClassifier):
             self.logger.info(
                 "Batch: {} completed!, time taken: {}".format(idx, batch_time))
             if idx != 0 and idx % save_after == 0:
+                #TODO: Delete these to save RAM?
+                self._merge_weights(weights, biases)
                 self._save_state(model_dir, idx)
                 self.logger.info("Saved state at epoch: {}".format(idx))
         self._merge_weights(weights, biases)
