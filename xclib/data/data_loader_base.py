@@ -103,3 +103,6 @@ class DataloaderBase(object):
         state = pickle.load(open(fname, 'rb'))
         self.num_labels = state['num_labels']
         self.valid_labels = state['valid_labels']
+
+    def _num_batches(self):
+        return self.batches.size #Number of batches
