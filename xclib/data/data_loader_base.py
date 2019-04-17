@@ -105,4 +105,4 @@ class DataloaderBase(object):
         self.valid_labels = state['valid_labels']
 
     def _num_batches(self):
-        return self.batches.size #Number of batches
+        return (self.batches) #Number of batches
