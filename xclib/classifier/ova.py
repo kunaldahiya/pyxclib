@@ -59,7 +59,7 @@ class OVAClassifier(BaseClassifier):
         self.num_labels = data.num_labels
         weights, biases = [], []
         run_time = 0.0
-        num_batches = data._num_batches
+        num_batches = data._num_batches()
         start_time = time.time()
         for idx, batch_data in enumerate(data):
             start_time = time.time()
@@ -73,7 +73,7 @@ class OVAClassifier(BaseClassifier):
             run_time += batch_time
             weights.append(batch_weight), biases.extend(batch_bias)
             self.logger.info(
-                "Batch: {}/{} completed!, time taken: {}".format(idx, num_batches, batch_time))
+                "Batch: [{}/{}] completed!, time taken: {}".format(idx+1, num_batches, batch_time))
             if idx != 0 and idx % save_after == 0:
                 #TODO: Delete these to save memory
                 self._merge_weights(weights, biases)
