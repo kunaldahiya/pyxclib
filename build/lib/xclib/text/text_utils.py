@@ -281,7 +281,7 @@ class TextUtility(object):
         keys.remove('<UNK>')
         _keys = ['<PAD>', '<UNK>'] 
         _keys.extend(keys)
-        self.vocabulary = dict(zip(_keys, range(_len(keys))))
+        self.vocabulary = dict(zip(_keys, range(len(keys))))
 
     def _vectorize(self, parsed_sentence):
         vector = []

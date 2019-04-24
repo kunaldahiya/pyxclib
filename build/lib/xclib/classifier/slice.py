@@ -72,7 +72,6 @@ class Slice(BaseClassifier):
         weights, biases = [], []
         run_time = 0.0
         start_time = time.time()
-        num_batches = data._num_batches()
         for idx, batch_data in enumerate(data):
             start_time = time.time()
             batch_weight, batch_bias = self._train(batch_data, self.num_threads)
@@ -84,10 +83,8 @@ class Slice(BaseClassifier):
             run_time += batch_time
             weights.append(batch_weight), biases.extend(batch_bias)
             self.logger.info(
-                "Batch: [{}/{}] completed!, time taken: {}".format(idx+1, num_batches, batch_time))
+                "Batch: {} completed!, time taken: {}".format(idx, batch_time))
             if idx != 0 and idx % save_after == 0:
-                #TODO: Delete these to save RAM?
-                self._merge_weights(weights, biases)
                 self._save_state(model_dir, idx)
                 self.logger.info("Saved state at epoch: {}".format(idx))
         self._merge_weights(weights, biases)

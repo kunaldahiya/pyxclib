@@ -10,7 +10,6 @@ import operator
 
 __author__ = 'X'
 
-
 def read_split_file(split_fname):
     '''
         Return array of train/ test split
@@ -20,7 +19,6 @@ def read_split_file(split_fname):
             np.array: split
     '''
     return np.genfromtxt(split_fname, dtype=np.int)
-
 
 def _split_data(data, indices):
     """
@@ -71,13 +69,12 @@ def write_sparse_file(labels, filename, header=True):
         labels=labels.tocsr()
     with open(filename, 'w') as f:
         if header:
-            print("%d %d"%(labels.shape[0], labels.shape[1]), file=f)
+            print("%d %d"%(labels.shape[0],labels.shape[1]),file=f)
         for y in labels:
             idx = y.__dict__['indices']
             val = y.__dict__['data']
-            sentence = ' '.join(['{}:{}'.format(x,v) for x, v in zip(idx, val)])
-            print(sentence, file=f)
-
+            sentence = ' '.join(['{}:{}'.format(x,v) for x,v in zip(idx,val)])
+            print(sentence,file=f)
 
 def read_sparse_file(filename, header=True, force_shape=False):
     '''
@@ -190,14 +187,6 @@ def tuples_to_csr(_input, _shape):
             vals+=list(map(lambda x: x[1],item))
     return csr_matrix(np.array(vals), (np.array(rows), np.array(cols)), shape=_shape)
 
-
-def normalize_data(features, norm='l2', copy=True):
-    """
-        Normalize sparse or dense matrix
-        Args:
-            features: sparse or dense/matrix
-            norm: normalize with l1/l2
-            copy: whether to copy data or not
-    """
-    features = normalize(features, norm=norm, copy=copy)
+def normalize_data(features, norm='l2'):
+    features = normalize(features, norm='l2', copy=True)
     return features 

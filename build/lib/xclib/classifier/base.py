@@ -4,7 +4,6 @@ import _pickle as pickle
 import os
 import numpy as np
 import _pickle as pickle
-import sys
 
 
 class BaseClassifier(object):
@@ -12,7 +11,7 @@ class BaseClassifier(object):
         self.verbose = verbose
         self.num_labels = None
         self.use_sparse = use_sparse
-        logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+        logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger('XC-Classifier')
         self.weight = None
         self.bias = None
