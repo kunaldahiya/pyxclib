@@ -1,7 +1,7 @@
 import numpy as np
 import os
-from xctools.data import data_utils
-import libs.utils as utils
+from . import data_utils
+from ..utils import utils
 import sklearn.preprocessing
 import scipy.sparse as sparse
 import _pickle as pickle
@@ -103,3 +103,6 @@ class DataloaderBase(object):
         state = pickle.load(open(fname, 'rb'))
         self.num_labels = state['num_labels']
         self.valid_labels = state['valid_labels']
+
+    def _num_batches(self):
+        return len(self.batches) #Number of batches

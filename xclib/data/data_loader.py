@@ -1,6 +1,5 @@
 import numpy as np
 import os
-from xctools.data import data_utils
 from .data_loader_base import DataloaderBase
 from ..utils import utils
 import sklearn.preprocessing

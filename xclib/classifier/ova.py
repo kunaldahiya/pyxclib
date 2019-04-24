@@ -45,19 +45,21 @@ class OVAClassifier(BaseClassifier):
         """
             Transposed classifiers before saving.
         """
+        # Bias is always a dense array
         if self.use_sparse:
             self.weight = sparse.vstack(
                 weights, format='csr', dtype=np.float32)
-            self.bias = sparse.vstack(biases, format='csr', dtype=np.float32)
+            self.bias = sparse.vstack(biases, format='csr', dtype=np.float32).toarray()
         else:
-            self.weight = np.vstack(weights).squeeze()
-            self.bias = np.vstack(biases)
+            self.weight = np.vstack(weights).astype(np.float32).squeeze()
+            self.bias = np.vstack(biases).astype(np.float32)
 
     def fit(self, data, model_dir, save_after=1):
         self.logger.info("Training!")
         self.num_labels = data.num_labels
         weights, biases = [], []
         run_time = 0.0
+        num_batches = data._num_batches()
         start_time = time.time()
         for idx, batch_data in enumerate(data):
             start_time = time.time()
@@ -71,8 +73,10 @@ class OVAClassifier(BaseClassifier):
             run_time += batch_time
             weights.append(batch_weight), biases.extend(batch_bias)
             self.logger.info(
-                "Batch: {} completed!, time taken: {}".format(idx, batch_time))
+                "Batch: [{}/{}] completed!, time taken: {}".format(idx+1, num_batches, batch_time))
             if idx != 0 and idx % save_after == 0:
+                #TODO: Delete these to save memory
+                self._merge_weights(weights, biases)
                 self._save_state(model_dir, idx)
                 self.logger.info("Saved state at epoch: {}".format(idx))
         self._merge_weights(weights, biases)
@@ -108,7 +112,7 @@ class OVAClassifier(BaseClassifier):
             pred = batch_data['data'][batch_data['ind']
                                       ] @ self.weight + self.bias
             utils._update_predicted(
-                start_idx, pred.toarray() if self.use_sparse else pred,
+                start_idx, pred.view(np.ndarray) if self.use_sparse else pred,
                 predicted_labels)
             start_idx += pred.shape[0]
         end_time = time.time()
