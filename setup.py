@@ -1,7 +1,18 @@
 import setuptools
+from setuptools.extension import Extension
+from Cython.Build import cythonize
+import numpy
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
+
+extensions = [
+    Extension(
+        "xclib.data._sparse",
+        ["xclib/data/_sparse.pyx"],
+        include_dirs=[numpy.get_include()]
+    ),
+]
 
 setuptools.setup(
     name="xclib",
@@ -13,6 +24,7 @@ setuptools.setup(
     url="https://github.com/kunaldahiya/xclib",
     packages=setuptools.find_packages(),
     package_data={'xclib': ["classifier/so/*.so"]},
+    ext_modules = cythonize(extensions),
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",

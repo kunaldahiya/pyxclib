@@ -7,6 +7,9 @@ from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.datasets import load_svmlight_file, dump_svmlight_file
 from sklearn.preprocessing import normalize
 import operator
+from ._sparse import __read_sparse_file
+import six
+import warnings
 
 __author__ = 'X'
 
@@ -78,38 +81,96 @@ def write_sparse_file(labels, filename, header=True):
             sentence = ' '.join(['{}:{}'.format(x,v) for x, v in zip(idx, val)])
             print(sentence, file=f)
 
+def _gen_open(f, _mode='rb'):
+    # Update this for more generic file types
+    return open(f, _mode)
 
-def read_sparse_file(filename, header=True, force_shape=False):
+def _read_sparse_file(f, dtype, zero_based, query_id,
+                   offset=0, length=-1, header=True):
+    def _handle_header(f, header):
+        num_cols, num_rows = None, None
+        if header:
+            num_cols, num_rows = map(int, f.readline().decode('utf-8').strip().split(' '))
+        return f, (num_cols, num_rows)
+    if hasattr(f, "read"):
+        f, _header_shape = _handle_header(f, header) 
+        actual_dtype, data, ind, indptr, query = \
+            __read_sparse_file(f, dtype, zero_based, query_id,
+                               offset, length)
+    else:
+        with _gen_open(f) as f:
+            f, _header_shape = _handle_header(f, header) 
+            actual_dtype, data, ind, indptr, query = \
+                __read_sparse_file(f, dtype, zero_based, query_id,
+                                   offset, length)
+
+    data = np.frombuffer(data, actual_dtype)
+    indices = np.frombuffer(ind, np.intc)
+    indptr = np.frombuffer(indptr, dtype=np.intc)   # never empty
+    query = np.frombuffer(query, np.int64)
+    data = np.asarray(data, dtype=dtype)    # no-op for float{32,64}
+    return data, indices, indptr, query, _header_shape
+
+
+def read_sparse_file(file, n_features=None, dtype=np.float64, zero_based="auto",
+                     query_id=False, offset=0, length=-1, header=True, force_header=False):
     '''
         Args:
-            input file in libsvm format
+            file: str: input file in libsvm format with or without header
+            n_features: int/None: number of features
+            dtype:: for values
+            zero_based: str or boolean: zero based indices
+            query_id: bool: If True, will return the query_id array
+            offset: int: Ignore the offset first bytes by seeking forward, 
+                        then discarding the following bytes up until the next new line character.
+            lenght: int: If strictly positive, stop reading any new line of data once the position 
+                        in the file has reached the (offset + length) bytes threshold.
+            header: bool: does file have a header
+            force_header: bool: force the shape of header
         Returns: 
-            CSR matrix
+            X: scipy.sparse.csr_matrix
+            query_id: array of shape (n_samples,)
     '''
-    with open(filename, 'r') as f:
-        if header:
-            num_samples, num_labels = map(int, f.readline().strip().split(' '))
-        else:
-            NotImplementedError("Not yet implemented!")
-        row = []
-        col = []
-        data = []
-        for i, line in enumerate(f):
-            idx, val = zip(
-                *[x for x in list(map(lambda x:x.split(':'), line.strip().split(' '))) if x[0] != ''])
-            if len(idx) > 0:
-                col += idx
-                row += [i]*len(idx)
-                data += val
-    data = list(map(np.float32, data))
-    row = list(map(np.int32, row))
-    col = list(map(np.int32, col))
-    if force_shape:
-        return csr_matrix((data, (row, col)), shape=(num_samples, num_labels), copy=False)
-    mat = csr_matrix((data, (row, col)), copy=False)
-    if mat.shape[0]!=num_samples or mat.shape[1]!=num_labels:
-        print("Warning: shape mismatch. expected ({},{}) found {}".format(num_samples, num_labels,mat.shape))
-    return mat
+    if (offset != 0 or length > 0) and zero_based == "auto":
+        zero_based = True
+
+    if (offset != 0 or length > 0) and n_features is None:
+        raise ValueError(
+            "n_features is required when offset or length is specified.")
+
+    data, indices, indptr, query_values, _header_shape = _read_sparse_file(file, dtype, bool(zero_based),
+                                                            bool(query_id),
+                                                            offset=offset, length=length)
+
+    if (zero_based is False or zero_based == "auto" and (len(indices) > 0 and np.min(indices) > 0)):
+        indices -= 1
+    n_f = (indices.max() if len(indices) else 0) + 1 # Num features
+    if n_features is None:
+        n_features = n_f        
+    elif n_features < n_f:
+        raise ValueError("n_features was set to {},"
+                         " but input file contains {} features"
+                         .format(n_features, n_f))
+
+    shape = (indptr.shape[0] - 1, n_features)
+    # Throw warning if shapes do not match
+    if header and shape != _header_shape:
+        warnings.warn("Header mis-match from inferred shape!")
+    if header and force_header:
+        # Inferred shape must be lower than header in both dimensions
+        assert shape[0] <= _header_shape[0], "num_rows_inferred > num_rows_header"
+        assert shape[1] <= _header_shape[1], "num_cols_inferred > num_cols_header"
+        _diff = _header_shape[0] - shape[0]
+        if _diff > 0: # Fix indptr as per new shape
+            # Data is copied here
+            indptr = np.concatenate((indptr, np.repeat(indptr[-1], _diff))) 
+        shape = _header_shape
+    X = csr_matrix((data, indices, indptr), shape)
+    X.sort_indices()
+    if query_id:
+        return tuple(X, query_values)
+    else:
+        return X
 
 
 def write_data(filename, features, labels, header=True):
