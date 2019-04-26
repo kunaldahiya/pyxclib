@@ -16,10 +16,12 @@ xclib/classifier/parabel.py
 xclib/classifier/slice.py
 xclib/classifier/so/__init__.py
 xclib/data/__init__.py
+xclib/data/_sparse.c
 xclib/data/data_loader.py
 xclib/data/data_loader_base.py
 xclib/data/data_statistics.py
 xclib/data/data_utils.py
+xclib/data/dense_utils.py
 xclib/embeddings/__init__.py
 xclib/embeddings/gen_embeddings.py
 xclib/embeddings/word_embedding.py
