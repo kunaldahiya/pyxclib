@@ -6,7 +6,7 @@ import numpy as np
 from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.datasets import load_svmlight_file, dump_svmlight_file
 import operator
-from ..utils.sparse import read_file, expand_indptr, ll_to_sparse
+from ..utils.sparse import ll_to_sparse, expand_indptr, _read_file
 import six
 import warnings
 
@@ -60,21 +60,21 @@ def split_train_test(features, labels, split):
     return train_feat, train_labels, test_feat, test_labels
 
 
-def write_sparse_file(labels, filename, header=True):
+def write_sparse_file(X, filename, header=True):
     '''
         Write sparse label matrix to text file (comma separated)
         Header: (#users, #labels)
         Args:
-            labels: sparse matrix: labels
+            X: sparse matrix: labels
             filename: str: output file
             header: bool: include header or not
     '''
-    if not isinstance(labels, csr_matrix):
-        labels = labels.tocsr()
+    if not isinstance(X, csr_matrix):
+        X = X.tocsr()
     with open(filename, 'w') as f:
         if header:
-            print("%d %d" % (labels.shape[0], labels.shape[1]), file=f)
-        for y in labels:
+            print("%d %d" % (X.shape[0], X.shape[1]), file=f)
+        for y in X:
             idx = y.__dict__['indices']
             val = y.__dict__['data']
             sentence = ' '.join(['{}:{}'.format(x, v)
@@ -109,12 +109,12 @@ def read_sparse_file(file, n_features=None, dtype=np.float64, zero_based=True,
             "n_features is required when offset or length is specified.")
 
     data, indices, indptr, \
-        query_values, _header_shape = read_sparse_file(file,
-                                                       dtype,
-                                                       bool(zero_based),
-                                                       bool(query_id),
-                                                       offset=offset,
-                                                       length=length)
+        query_values, _header_shape = _read_file(file,
+                                                 dtype,
+                                                 bool(zero_based),
+                                                 bool(query_id),
+                                                 offset=offset,
+                                                 length=length)
 
     if (zero_based is False or zero_based == "auto" and (len(indices) > 0 and np.min(indices) > 0)):
         indices -= 1
