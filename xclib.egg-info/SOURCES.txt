@@ -14,9 +14,11 @@ xclib/classifier/mips.py
 xclib/classifier/ova.py
 xclib/classifier/parabel.py
 xclib/classifier/slice.py
+xclib/classifier/pyParabel/__init__.py
+xclib/classifier/pyParabel/parabel.cpp
+xclib/classifier/pyParabel/parabel.py
 xclib/classifier/so/__init__.py
 xclib/data/__init__.py
-xclib/data/_sparse.c
 xclib/data/data_loader.py
 xclib/data/data_loader_base.py
 xclib/data/data_statistics.py
@@ -33,7 +35,9 @@ xclib/text/__init__.py
 xclib/text/run_vec_tfidf.py
 xclib/text/text_utils.py
 xclib/utils/__init__.py
+xclib/utils/_sparse.c
 xclib/utils/ann.py
 xclib/utils/clustering.py
 xclib/utils/shortlist_utils.py
+xclib/utils/sparse.py
 xclib/utils/utils.py

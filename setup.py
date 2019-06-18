@@ -2,6 +2,8 @@ import setuptools
 from setuptools.extension import Extension
 from Cython.Build import cythonize
 import numpy
+import sys
+import os
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -13,6 +15,11 @@ extensions = [
         include_dirs=[numpy.get_include()]
     ),
 ]
+cpp_module = [ Extension('xclib.classifier.so.parabel',
+                    include_dirs = ['-pthread', os.environ['EIGEN']],
+                    extra_compile_args = ["-std=c++11"],
+                    library_dirs = ['/usr/local/lib'],
+                    sources=['xclib/classifier/pyParabel/parabel.cpp']),]
 
 setuptools.setup(
     name="xclib",
@@ -23,8 +30,8 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/kunaldahiya/xclib",
     packages=setuptools.find_packages(),
-    package_data={'xclib': ["classifier/so/*.so"]},
-    ext_modules = cythonize(extensions),
+    # package_data={'xclib': ["classifier/so/*.so"]},
+    ext_modules = cpp_module+cythonize(extensions),
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",
