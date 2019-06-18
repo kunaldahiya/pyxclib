@@ -5,9 +5,8 @@
 import numpy as np
 from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.datasets import load_svmlight_file, dump_svmlight_file
-from sklearn.preprocessing import normalize
 import operator
-from ._sparse import __read_sparse_file
+from ..utils.sparse import read_file, expand_indptr, ll_to_sparse
 import six
 import warnings
 
@@ -71,45 +70,16 @@ def write_sparse_file(labels, filename, header=True):
             header: bool: include header or not
     '''
     if not isinstance(labels, csr_matrix):
-        labels=labels.tocsr()
+        labels = labels.tocsr()
     with open(filename, 'w') as f:
         if header:
-            print("%d %d"%(labels.shape[0], labels.shape[1]), file=f)
+            print("%d %d" % (labels.shape[0], labels.shape[1]), file=f)
         for y in labels:
             idx = y.__dict__['indices']
             val = y.__dict__['data']
-            sentence = ' '.join(['{}:{}'.format(x,v) for x, v in zip(idx, val)])
+            sentence = ' '.join(['{}:{}'.format(x, v)
+                                 for x, v in zip(idx, val)])
             print(sentence, file=f)
-
-def _gen_open(f, _mode='rb'):
-    # Update this for more generic file types
-    return open(f, _mode)
-
-def _read_sparse_file(f, dtype, zero_based, query_id,
-                   offset=0, length=-1, header=True):
-    def _handle_header(f, header):
-        num_cols, num_rows = None, None
-        if header:
-            num_cols, num_rows = map(int, f.readline().decode('utf-8').strip().split(' '))
-        return f, (num_cols, num_rows)
-    if hasattr(f, "read"):
-        f, _header_shape = _handle_header(f, header) 
-        actual_dtype, data, ind, indptr, query = \
-            __read_sparse_file(f, dtype, zero_based, query_id,
-                               offset, length)
-    else:
-        with _gen_open(f) as f:
-            f, _header_shape = _handle_header(f, header) 
-            actual_dtype, data, ind, indptr, query = \
-                __read_sparse_file(f, dtype, zero_based, query_id,
-                                   offset, length)
-
-    data = np.frombuffer(data, actual_dtype)
-    indices = np.frombuffer(ind, np.intc)
-    indptr = np.frombuffer(indptr, dtype=np.intc)   # never empty
-    query = np.frombuffer(query, np.int64)
-    data = np.asarray(data, dtype=dtype)    # no-op for float{32,64}
-    return data, indices, indptr, query, _header_shape
 
 
 def read_sparse_file(file, n_features=None, dtype=np.float64, zero_based="auto",
@@ -138,15 +108,19 @@ def read_sparse_file(file, n_features=None, dtype=np.float64, zero_based="auto",
         raise ValueError(
             "n_features is required when offset or length is specified.")
 
-    data, indices, indptr, query_values, _header_shape = _read_sparse_file(file, dtype, bool(zero_based),
-                                                            bool(query_id),
-                                                            offset=offset, length=length)
+    data, indices, indptr, \
+        query_values, _header_shape = read_sparse_file(file,
+                                                       dtype,
+                                                       bool(zero_based),
+                                                       bool(query_id),
+                                                       offset=offset,
+                                                       length=length)
 
     if (zero_based is False or zero_based == "auto" and (len(indices) > 0 and np.min(indices) > 0)):
         indices -= 1
-    n_f = (indices.max() if len(indices) else 0) + 1 # Num features
+    n_f = (indices.max() if len(indices) else 0) + 1  # Num features
     if n_features is None:
-        n_features = n_f        
+        n_features = n_f
     elif n_features < n_f:
         raise ValueError("n_features was set to {},"
                          " but input file contains {} features"
@@ -160,10 +134,7 @@ def read_sparse_file(file, n_features=None, dtype=np.float64, zero_based="auto",
         # Inferred shape must be lower than header in both dimensions
         assert shape[0] <= _header_shape[0], "num_rows_inferred > num_rows_header"
         assert shape[1] <= _header_shape[1], "num_cols_inferred > num_cols_header"
-        _diff = _header_shape[0] - shape[0]
-        if _diff > 0: # Fix indptr as per new shape
-            # Data is copied here
-            indptr = np.concatenate((indptr, np.repeat(indptr[-1], _diff))) 
+        indptr = expand_indptr(shape[0], _header_shape[0], indptr)
         shape = _header_shape
     X = csr_matrix((data, indices, indptr), shape)
     X.sort_indices()
@@ -192,8 +163,9 @@ def write_data(filename, features, labels, header=True):
     else:
         with open(filename, 'wb') as f:
             dump_svmlight_file(features, labels, f, multilabel=True)
-    
-def read_data(filename, header=True):
+
+
+def read_data(filename, header=True, dtype='float32', zero_based=True):
     '''
         Read data in sparse format
         Args:
@@ -208,57 +180,14 @@ def read_data(filename, header=True):
 
     '''
     with open(filename, 'rb') as f:
+        _l_shape = None
         if header:
             line = f.readline().decode('utf-8').rstrip("\n")
             line = line.split(" ")
-            num_samples, num_feat, num_labels = int(line[0]), int(line[1]), int(line[2])
+            num_samples, num_feat, num_labels = int(
+                line[0]), int(line[1]), int(line[2])
+            _l_shape = (num_samples, num_labels)
         else:
             num_samples, num_feat, num_labels = None, None, None
         features, labels = load_svmlight_file(f, multilabel=True)
     return features, labels, num_samples, num_feat, num_labels
-
-def binarize_labels(labels, num_classes):
-    '''
-        Binarize labels
-        Args:
-            labels: list of list
-        Returns: 
-            csr_matrix with positive labels as 1
-    '''
-    temp = lil_matrix((len(labels), num_classes), dtype=np.int)
-    for idx, _lb in enumerate(labels):
-        for item in _lb:
-            temp[idx, int(item)] = 1
-    return temp.tocsr()
-
-
-def tuples_to_csr(_input, _shape):
-    """
-        Convert a list of list of tuples to csr matrix
-        Args:
-        _input: list
-        _shape: tuple: shape of output matrix
-        Returns:
-        output: csr_matrix: matrix with given data and shape
-    """
-    rows = []
-    cols = []
-    vals = []
-    for idx, item in enumerate(_input):
-        if len(item)>0:
-            row+=[idx]*len(item)
-            cols+=list(map(lambda x: x[0],item))
-            vals+=list(map(lambda x: x[1],item))
-    return csr_matrix(np.array(vals), (np.array(rows), np.array(cols)), shape=_shape)
-
-
-def normalize_data(features, norm='l2', copy=True):
-    """
-        Normalize sparse or dense matrix
-        Args:
-            features: sparse or dense/matrix
-            norm: normalize with l1/l2
-            copy: whether to copy data or not
-    """
-    features = normalize(features, norm=norm, copy=copy)
-    return features 
