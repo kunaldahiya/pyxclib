@@ -1,0 +1,14 @@
+INC=/I..\Tools\c++
+CXXFLAGS=/O2
+
+all: parabel_train parabel_predict
+
+parabel_train:
+	cl /EHsc /Fe:parabel_train.exe $(CXXFLAGS) $(INC) parabel_train.cpp parabel.cpp
+
+parabel_predict:
+	cl /EHsc /Fe:parabel_predict.exe $(CXXFLAGS) $(INC) parabel_predict.cpp parabel.cpp
+
+clean:
+	del /f parabel_train.exe parabel_train.obj parabel_predict.exe parabel_predict.obj parabel.obj
+
