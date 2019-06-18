@@ -82,7 +82,7 @@ def write_sparse_file(labels, filename, header=True):
             print(sentence, file=f)
 
 
-def read_sparse_file(file, n_features=None, dtype=np.float64, zero_based="auto",
+def read_sparse_file(file, n_features=None, dtype=np.float64, zero_based=True,
                      query_id=False, offset=0, length=-1, header=True, force_header=False):
     '''
         Args:
@@ -190,4 +190,5 @@ def read_data(filename, header=True, dtype='float32', zero_based=True):
         else:
             num_samples, num_feat, num_labels = None, None, None
         features, labels = load_svmlight_file(f, multilabel=True)
+        labels = ll_to_sparse(labels, dtype=dtype, zero_based=zero_based, shape=_l_shape)
     return features, labels, num_samples, num_feat, num_labels
