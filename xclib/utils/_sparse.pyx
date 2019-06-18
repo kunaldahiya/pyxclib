@@ -9,8 +9,8 @@
 import array
 from cpython cimport array
 cimport cython
+import numpy as _np
 from libc.string cimport strchr
-
 cimport numpy as np
 import numpy as np
 import scipy.sparse as sp
@@ -25,7 +25,7 @@ cdef Py_UCS4 HASH = u'#'
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def __read_sparse_file(f, dtype, bint zero_based, bint query_id, 
+def read_file(f, dtype, bint zero_based, bint query_id, 
                       long long offset, long long length):
     cdef array.array data, indices, indptr
     cdef bytes line
@@ -44,8 +44,8 @@ def __read_sparse_file(f, dtype, bint zero_based, bint query_id,
     else:
         dtype = np.float64
         data = array.array("d")
-    indices = array.array("i")
-    indptr = array.array("i", [0])
+    indices = array.array("l")
+    indptr = array.array("l", [0])
     query = np.arange(0, dtype=np.int64)
 
     if offset > 0:
@@ -103,3 +103,24 @@ def __read_sparse_file(f, dtype, bint zero_based, bint query_id,
             # Stop here and let another call deal with the following.
             break
     return (dtype, data, indices, indptr, query)
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def rank_data(b):
+    if b.size == 0:
+        return _np.array([], dtype=_np.intp)
+    sorter = _np.argsort(b, kind='mergesort')
+    inv = _np.empty(b.size, dtype=_np.intp)
+    inv[sorter] = _np.arange(sorter.size, dtype=_np.intp)
+    return inv+1
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def rank(data, indices, indptr):
+    cdef Py_ssize_t num_rows = indptr.size
+    cdef Py_ssize_t idx
+    cdef np.ndarray[np.int_t, ndim=1] rank = _np.empty(data.size, dtype=_np.intp)
+    for idx in range(num_rows-1):
+        rank[indptr[idx]:indptr[idx+1]] = rank_data(-1*data[indptr[idx]:indptr[idx+1]])
+    return rank
