@@ -8,15 +8,15 @@ with open("README.md", "r") as fh:
 
 extensions = [
     Extension(
-        "xclib.data._sparse",
-        ["xclib/data/_sparse.pyx"],
+        "xclib.utils._sparse",
+        ["xclib/utils/_sparse.pyx"],
         include_dirs=[numpy.get_include()]
     ),
 ]
 
 setuptools.setup(
     name="xclib",
-    version="0.95",
+    version="0.96",
     author="X",
     author_email="kunalsdahiya@gmail.com/anshumitts@gmail.com",
     description="An extreme classification library for python",
