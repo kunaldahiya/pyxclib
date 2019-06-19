@@ -4,7 +4,7 @@ Tools for multi-label classification problems.
 ```bash
 git clone https://github.com/kunaldahiya/xclib.git
 cd xclib
-sh run.sh
+sh install.sh
 ```
 Usage 
 ```python
