@@ -16,7 +16,7 @@ extensions = [
     ),
 ]
 cpp_module = [ Extension('xclib.classifier.so.parabel',
-                    include_dirs = ['-pthread', os.environ['EIGEN']],
+                    include_dirs = ['-pthread', os.environ['EIGEN'], os.environ['PYBIND']],
                     extra_compile_args = ["-std=c++11"],
                     library_dirs = ['/usr/local/lib'],
                     sources=['xclib/classifier/pyParabel/parabel.cpp']),]
