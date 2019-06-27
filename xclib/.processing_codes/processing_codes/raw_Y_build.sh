@@ -27,16 +27,21 @@ XT=$datasets'/corpus_labels_titles.txt'
 TLOWX=$ROOT'/low_labels_X.txt'
 TEMP=$ROOT'/temp.txt'
 mkdir -p $ROOT'/Yfts'
+mkdir -p $ROOT'/Yfts-Title'
 clean_text(){
 	echo "USING STD TOKENIZER"
 	python -u $TOKENIZER $1 $2 $3 $4 $5 $6 $7
 }
 
-# awk -F '->' '{$1=""; print $0}' $X | perl $PREPROCESS >$TLOWX'Text'
-# awk -F '->' '{$1=""; print $0}' $XT | perl $PREPROCESS >$TLOWX'Title'
-# paste -d' ' $TLOWX'Title' $TLOWX'Text' > $TLOWX
-# cat $X | perl $PREPROCESS >$TLOWX
+awk -F '->' '{$1=""; print $0}' $X | perl $PREPROCESS >$TLOWX'Text'
+awk -F '->' '{$1=""; print $0}' $XT | perl $PREPROCESS >$TLOWX'Title'
+paste -d' ' $TLOWX'Title' $TLOWX'Text' > $TLOWX
+
+wc -l "$TLOWX*"
+
 clean_text $ROOT'/Yfts' $TLOWX $ROOT'/Yfts/Yf.txt'
-# rm -rf $TLOWX
-# rm -rf $TLOWX'Text'
-# rm -rf $TLOWX'Title'
+clean_text $ROOT'/Yfts-Title' $TLOWX'Title' $ROOT'/Yfts-Title/Yf.txt'
+
+rm -rf $TLOWX
+rm -rf $TLOWX'Text'
+rm -rf $TLOWX'Title'
