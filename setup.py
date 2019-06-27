@@ -15,11 +15,11 @@ extensions = [
         include_dirs=[numpy.get_include()]
     ),
 ]
-cpp_module = [ Extension('xclib.classifier.so.parabel',
-                    include_dirs = ['-pthread', os.environ['EIGEN'], os.environ['PYBIND']],
-                    extra_compile_args = ["-std=c++11"],
-                    library_dirs = ['/usr/local/lib'],
-                    sources=['xclib/classifier/pyParabel/parabel.cpp']),]
+# cpp_module = [ Extension('xclib.classifier.so.parabel',
+#                     include_dirs = ['-pthread', os.environ['EIGEN'], os.environ['PYBIND']],
+#                     extra_compile_args = ["-std=c++11"],
+#                     library_dirs = ['/usr/local/lib'],
+#                     sources=['xclib/classifier/pyParabel/parabel.cpp']),]
 
 setuptools.setup(
     name="xclib",
@@ -29,9 +29,10 @@ setuptools.setup(
     description="An extreme classification library for python",
     long_description_content_type="text/markdown",
     url="https://github.com/kunaldahiya/xclib",
+    install_requires=['numpy', 'nmslib', 'sklearn'],
     packages=setuptools.find_packages(),
     # package_data={'xclib': ["classifier/so/*.so"]},
-    ext_modules = cpp_module+cythonize(extensions),
+    ext_modules = cythonize(extensions),
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",
