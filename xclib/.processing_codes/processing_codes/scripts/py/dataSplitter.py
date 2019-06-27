@@ -1,7 +1,7 @@
 #! python3
 import sys
 import numpy as np
-from xctools.data import data_utils as du
+from xclib.data import data_utils as du
 root = sys.argv[1]
 
 y = du.read_sparse_file(root+"/corpus_lbl_mat.txt")
@@ -18,7 +18,10 @@ docs = []
 
 document_lbs = np.ravel(y.sum(axis=1))
 
-for lb in lb_doc:
+for idx, lb in enumerate(lb_doc):
+	if len(lb.__dict__['indices']) ==0:
+		print(idx)
+		exit(0)
 	docs.append(lb.__dict__['indices'])
 
 diff_flag = 20000000
@@ -45,17 +48,17 @@ while counter <= 100:
 	train_instances = np.setdiff1d(np.arange(num_instance), test_instances)
 	tst_lbs = np.where(np.ravel(y[test_instances].sum(axis=0))>0)[0]
 	trn_lbs = np.where(np.ravel(y[train_instances].sum(axis=0))>0)[0]
-	diff = np.intersect1d(tst_lbs,trn_lbs).size-num_lbls
-	_flag = np.abs(trn_lbs.size-tst_lbs.size)
-	if _flag > diff_flag:
+	diff = np.abs(np.intersect1d(tst_lbs,trn_lbs).size-num_lbls)
+	if diff < diff_flag:
 		print()
 		print("Train #: %d"%(train_instances.size))
 		print("Test #: %d"%(test_instances.size))
+		print("Difference #: %d" % (diff))
 		print(tst_lbs.size, trn_lbs.size)
 		splits = np.ones(num_instance,dtype=np.int32)
 		splits[train_instances] = 0
 		np.savetxt(root+"/split.0.txt",splits,fmt="%d")
-		diff_flag = _flag
-		if _flag ==0:
+		diff_flag = diff
+		if diff == 0:
 			break
 	counter+=1
