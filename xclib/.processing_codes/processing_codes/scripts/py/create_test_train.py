@@ -1,10 +1,10 @@
 import sys
 import numpy as np
-from xctools.data import data_utils as du
+from xclib.data import data_utils as du
 
 root = sys.argv[1]
 splits = np.loadtxt(root+'/split.0.txt',dtype=int)
-Ylbl = du.read_sparse_file('corpus_lbl_mat.txt')
+Ylbl = du.read_sparse_file(root+'/corpus_lbl_mat.txt')
 
 du.write_sparse_file(Ylbl[splits==1],root+'/tst_lbl_mat.txt')
 du.write_sparse_file(Ylbl[splits==0],root+'/trn_lbl_mat.txt')

@@ -60,30 +60,14 @@ def main():
     num_instances = text.shape[0]
     data_not_present = np.where(np.ravel(text.sum(axis=1)) == 0)[0]
 
-    print("DATA is not present in %d documents" % len(data_not_present))
+    print("DATA is not present in %d labels" % len(data_not_present))
 
     text = sp.hstack([text, np.zeros((num_instances, 1), np.float32)]).tocsr()
     vocab = t_obj.get_feature_names()+['unk']
-    np.savetxt(data_dir+'/Xf-Text.txt', vocab, fmt="%s")
-
-    text[data_not_present, -1] = 0
-    flags = np.ones((num_instances, 1), np.int32)
-    flags[data_not_present, 0] = 0
-
-    train_txt, test_txt = split_train_test(text, read_split_file(sys.argv[3]))
-    train_lbl, test_lbl = split_train_test(
-    data_utils.read_sparse_file(sys.argv[4]), read_split_file(sys.argv[3]))
-    train_dp, test_dp = split_train_test(flags, read_split_file(sys.argv[3]))
-
-    tr_lb = train_lbl[train_dp[:, 0] != 0]
-    ts_lb = test_lbl[test_dp[:, 0] != 0]
-    print(tr_lb.shape, train_txt.shape)
-    print(ts_lb.shape, test_txt.shape)
-    data_utils.write_data(sys.argv[5], (train_txt.tocsr()[train_dp[:, 0] != 0]).astype(
-        np.float32), tr_lb.astype(np.float32))
-    data_utils.write_data(sys.argv[6], (test_txt.tocsr()[test_dp[:, 0] != 0]).astype(
-        np.float32), ts_lb.astype(np.float32))
-
+    np.savetxt(data_dir+'/vocabY.txt', vocab, fmt="%s")
+    text[data_not_present, -1] = 1
+    print(text.shape)
+    data_utils.write_sparse_file(text.tocsr(), sys.argv[3])
 
 if __name__ == '__main__':
     main()
