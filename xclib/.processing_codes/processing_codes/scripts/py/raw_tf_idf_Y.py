@@ -55,7 +55,7 @@ def main():
     data_dir = sys.argv[1]
     data = sys.argv[2]
     # text feature object
-    t_obj = tfidf(min_df=3, max_df=0.9, stop_words=[], norm=None)
+    t_obj = tfidf(min_df=3, max_df=0.8, stop_words=[], norm=None)
     text = t_obj.fit_transform(open(data, 'r', encoding='latin1'))
     num_instances = text.shape[0]
     data_not_present = np.where(np.ravel(text.sum(axis=1)) == 0)[0]
