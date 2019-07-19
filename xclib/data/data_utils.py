@@ -82,8 +82,9 @@ def write_sparse_file(X, filename, header=True):
             print(sentence, file=f)
 
 
-def read_sparse_file(file, n_features=None, dtype=np.float64, zero_based=True,
-                     query_id=False, offset=0, length=-1, header=True, force_header=False):
+def read_sparse_file(file, n_features=None, dtype=np.float64, 
+                     zero_based=True, query_id=False, offset=0, 
+                     length=-1, header=True, force_header=True):
     '''
         Args:
             file: str: input file in libsvm format with or without header
@@ -91,13 +92,15 @@ def read_sparse_file(file, n_features=None, dtype=np.float64, zero_based=True,
             dtype:: for values
             zero_based: str or boolean: zero based indices
             query_id: bool: If True, will return the query_id array
-            offset: int: Ignore the offset first bytes by seeking forward, 
-                        then discarding the following bytes up until the next new line character.
-            lenght: int: If strictly positive, stop reading any new line of data once the position 
-                        in the file has reached the (offset + length) bytes threshold.
+            offset: int: Ignore the offset first bytes by seeking forward,
+                        then discarding the following bytes up until the
+                        next new line character.
+            lenght: int: If strictly positive, stop reading any new line
+                        of data once the position in the file has reached
+                        the (offset + length) bytes threshold.
             header: bool: does file have a header
             force_header: bool: force the shape of header
-        Returns: 
+        Returns:
             X: scipy.sparse.csr_matrix
             query_id: array of shape (n_samples,)
     '''
