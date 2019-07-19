@@ -1,26 +1,44 @@
-# Example to evaluate
 import sys
-import xclibs.evaluation.xml_metrics
-import xclibs.data.data_utils
-from scipy.io import loadmat
-import numpy as np
+import xclib.evaluation.xc_metrics as xc_metrics
+import xclib.data.data_utils as data_utils
 
-def main(targets_file, train_file, predictions_file):
-    # Load the dataset
-    _, te_labels, te_num_samples, _, te_num_labels = data_utils.read_data(targets_file)
-    true_labels = data_utils.binarize_labels(te_labels, te_num_labels)
-    
-    _, tr_labels, tr_num_samples, _, tr_num_labels = data_utils.read_data(train_file)
-    trn_labels  = data_utils.binarize_labels(tr_labels, tr_num_labels)
 
-    predicted_labels = loadmat(predictions_file)['predicted_labels']
-    inv_propen = xml_metrics.compute_inv_propesity(trn_labels, A= 0.55, B=1.5)
-    acc = xml_metrics.Metrices(true_labels, inv_propensity_scores=inv_propen, remove_invalid=False)
+def compute_inv_propensity(train_file, A, B):
+    """
+        Compute Inverse propensity values
+        Values for A/B:
+            Wikpedia-500K: 0.5/0.4
+            Amazon-670K, Amazon-3M: 0.6/2.6
+            Others: 0.55/1.5
+    """
+    train_labels = data_utils.read_sparse_file(train_file)
+    inv_propen = xc_metrics.compute_inv_propesity(train_labels, A, B)
+    return inv_propen
+
+
+def main(targets_file, train_file, predictions_file, A, B):
+    """
+        Args:
+            targets_file: test labels
+            train_file: train labels (to compute prop)
+            prediction_file: predicted labels
+            A: int: to compute propensity
+            B: int: to compute propensity
+    """
+    true_labels = data_utils.read_sparse_file(targets_file)
+    predicted_labels = data_utils.read_sparse_file(predictions_file)
+    inv_propen = compute_inv_propensity(train_file, A, B)
+    acc = xc_metrics.Metrices(true_labels=true_labels,
+                              inv_propensity_scores=inv_propen,
+                              remove_invalid=False)
     args = acc.eval(predicted_labels, 5)
-    print(xml_metrics.format(*args))
+    print(xc_metrics.format(*args))
+
 
 if __name__ == '__main__':
     train_file = sys.argv[1]
-    targets_file = sys.argv[2] # Usually test data file
-    predictions_file = sys.argv[3] # In mat format
-    main(targets_file, train_file, predictions_file)
+    targets_file = sys.argv[2]  
+    predictions_file = sys.argv[3] 
+    A = float(sys.argv[4])
+    B = float(sys.argv[5])
+    main(targets_file, train_file, predictions_file, A, B)

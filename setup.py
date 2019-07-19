@@ -32,7 +32,7 @@ setuptools.setup(
     install_requires=['numpy', 'nmslib', 'sklearn'],
     packages=setuptools.find_packages(),
     # package_data={'xclib': ["classifier/so/*.so"]},
-    ext_modules = cythonize(extensions),
+    ext_modules=cythonize(extensions),
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",
