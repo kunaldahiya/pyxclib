@@ -3,10 +3,10 @@
         Uses sparse matrices which is suitable for large datasets
 """
 import numpy as np
-from scipy.sparse import csr_matrix, lil_matrix
+from scipy.sparse import csr_matrix
 from sklearn.datasets import load_svmlight_file, dump_svmlight_file
 import operator
-from ..utils.sparse import ll_to_sparse, expand_indptr, _read_file
+from ..utils.sparse import ll_to_sparse, expand_indptr, _read_file, _read_file_safe
 import six
 import warnings
 
@@ -82,9 +82,9 @@ def write_sparse_file(X, filename, header=True):
             print(sentence, file=f)
 
 
-def read_sparse_file(file, n_features=None, dtype=np.float64, 
-                     zero_based=True, query_id=False, offset=0, 
-                     length=-1, header=True, force_header=True):
+def read_sparse_file(file, n_features=None, dtype=np.float64, zero_based=True,
+                     query_id=False, offset=0, length=-1, header=True,
+                     force_header=True, safe_read=True):
     '''
         Args:
             file: str: input file in libsvm format with or without header
@@ -92,15 +92,14 @@ def read_sparse_file(file, n_features=None, dtype=np.float64,
             dtype:: for values
             zero_based: str or boolean: zero based indices
             query_id: bool: If True, will return the query_id array
-            offset: int: Ignore the offset first bytes by seeking forward,
-                        then discarding the following bytes up until the
-                        next new line character.
-            lenght: int: If strictly positive, stop reading any new line
-                        of data once the position in the file has reached
-                        the (offset + length) bytes threshold.
+            offset: int: Ignore the offset first bytes by seeking forward, 
+                        then discarding the following bytes up until the next new line character.
+            length: int: If strictly positive, stop reading any new line of data once the position 
+                        in the file has reached the (offset + length) bytes threshold.
             header: bool: does file have a header
             force_header: bool: force the shape of header
-        Returns:
+            safe_read: bool: check for sorted and unique indices and checks for header_shape and inferred shape
+        Returns: 
             X: scipy.sparse.csr_matrix
             query_id: array of shape (n_samples,)
     '''
@@ -111,35 +110,47 @@ def read_sparse_file(file, n_features=None, dtype=np.float64,
         raise ValueError(
             "n_features is required when offset or length is specified.")
 
-    data, indices, indptr, \
-        query_values, _header_shape = _read_file(file,
-                                                 dtype,
-                                                 bool(zero_based),
-                                                 bool(query_id),
-                                                 offset=offset,
-                                                 length=length)
+    if safe_read:
+        data, indices, indptr, \
+            query_values, _header_shape = _read_file_safe(file,
+                                                          dtype,
+                                                          bool(zero_based),
+                                                          bool(query_id),
+                                                          offset=offset,
+                                                          length=length)
+        if (zero_based is False or zero_based == "auto" and (len(indices) > 0 and np.min(indices) > 0)):
+            indices -= 1
+        n_f = (indices.max() if len(indices) else 0) + 1  # Num features
+        if n_features is None:
+            n_features = n_f
+        elif n_features < n_f:
+            raise ValueError("n_features was set to {},"
+                             " but input file contains {} features"
+                             .format(n_features, n_f))
 
-    if (zero_based is False or zero_based == "auto" and (len(indices) > 0 and np.min(indices) > 0)):
-        indices -= 1
-    n_f = (indices.max() if len(indices) else 0) + 1  # Num features
-    if n_features is None:
-        n_features = n_f
-    elif n_features < n_f:
-        raise ValueError("n_features was set to {},"
-                         " but input file contains {} features"
-                         .format(n_features, n_f))
-
-    shape = (indptr.shape[0] - 1, n_features)
-    # Throw warning if shapes do not match
-    if header and shape != _header_shape:
-        warnings.warn("Header mis-match from inferred shape!")
-    if header and force_header:
-        # Inferred shape must be lower than header in both dimensions
-        assert shape[0] <= _header_shape[0], "num_rows_inferred > num_rows_header"
-        assert shape[1] <= _header_shape[1], "num_cols_inferred > num_cols_header"
-        indptr = expand_indptr(shape[0], _header_shape[0], indptr)
-        shape = _header_shape
-    X = csr_matrix((data, indices, indptr), shape)
+        shape = (indptr.shape[0] - 1, n_features)
+        # Throw warning if shapes do not match
+        if header and shape != _header_shape:
+            warnings.warn("Header mis-match from inferred shape!")
+        if header and force_header:
+            # Inferred shape must be lower than header in both dimensions
+            assert shape[0] <= _header_shape[0], "num_rows_inferred > num_rows_header"
+            assert shape[1] <= _header_shape[1], "num_cols_inferred > num_cols_header"
+            indptr = expand_indptr(shape[0], _header_shape[0], indptr)
+            shape = _header_shape
+        X = csr_matrix((data, indices, indptr), shape)
+    else: # Just use header shape
+        data, rows, cols, \
+            query_values, _header_shape = _read_file(file,
+                                                     dtype,
+                                                     bool(zero_based),
+                                                     bool(query_id),
+                                                     offset=offset,
+                                                     length=length)
+        if (zero_based is False or zero_based == "auto" and (len(cols) > 0 and np.min(cols) > 0)):
+            cols -= 1
+        # Will sum if indices are repeated
+        X = csr_matrix((data, (rows, cols)), shape=_header_shape)
     X.sort_indices()
     if query_id:
         return tuple(X, query_values)
