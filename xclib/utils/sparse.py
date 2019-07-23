@@ -1,4 +1,4 @@
-from ._sparse import rank, read_file
+from ._sparse import rank, read_file, read_file_safe
 from scipy.sparse import csr_matrix, isspmatrix
 import numpy as np
 import warnings
@@ -133,7 +133,7 @@ def normalize_data(X, norm='l2', copy=True):
     return features
 
 
-def _read_file(f, dtype, zero_based, query_id,
+def _read_file_safe(f, dtype, zero_based, query_id,
                offset=0, length=-1, header=True):
     def _handle_header(f, header):
         num_cols, num_rows = None, None
@@ -144,13 +144,13 @@ def _read_file(f, dtype, zero_based, query_id,
     if hasattr(f, "read"):
         f, _header_shape = _handle_header(f, header)
         actual_dtype, data, ind, indptr, query = \
-            read_file(f, dtype, zero_based, query_id,
+            read_file_safe(f, dtype, zero_based, query_id,
                       offset, length)
     else:
         with _gen_open(f) as f:
             f, _header_shape = _handle_header(f, header)
             actual_dtype, data, ind, indptr, query = \
-                read_file(f, dtype, zero_based, query_id,
+                read_file_safe(f, dtype, zero_based, query_id,
                           offset, length)
 
     data = np.frombuffer(data, actual_dtype)
@@ -159,6 +159,34 @@ def _read_file(f, dtype, zero_based, query_id,
     query = np.frombuffer(query, np.int64)
     data = np.asarray(data, dtype=dtype)    # no-op for float{32,64}
     return data, indices, indptr, query, _header_shape
+
+
+def _read_file(f, dtype, zero_based, query_id,
+               offset=0, length=-1, header=True):
+    def _handle_header(f, header):
+        num_cols, num_rows = None, None
+        if header:
+            num_cols, num_rows = map(
+                int, f.readline().decode('utf-8').strip().split(' '))
+        return f, (num_cols, num_rows)
+    if hasattr(f, "read"):
+        f, _header_shape = _handle_header(f, header)
+        actual_dtype, data, rows, cols, query = \
+            read_file(f, dtype, zero_based, query_id,
+                      offset, length)
+    else:
+        with _gen_open(f) as f:
+            f, _header_shape = _handle_header(f, header)
+            actual_dtype, data, rows, cols, query = \
+                read_file(f, dtype, zero_based, query_id,
+                          offset, length)
+
+    data = np.frombuffer(data, actual_dtype)
+    rows = np.frombuffer(rows, np.int64)
+    cols = np.frombuffer(cols, dtype=np.int64)   # never empty
+    query = np.frombuffer(query, np.int64)
+    data = np.asarray(data, dtype=dtype)    # no-op for float{32,64}
+    return data, rows, cols, query, _header_shape
 
 
 def _gen_open(f, _mode='rb'):
