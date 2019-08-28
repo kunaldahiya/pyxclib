@@ -192,3 +192,14 @@ def _read_file(f, dtype, zero_based, query_id,
 def _gen_open(f, _mode='rb'):
     # Update this for more generic file types
     return open(f, _mode)
+
+
+def sigmoid(X):
+    """Sparse sigmoid i.e. zeros are kept intact
+    Parameters
+    ----------
+    X: csr_matrix
+        sparse matrix in csr format
+    """
+    X.data = 1/(1+np.exp(-X.data))
+    return X
