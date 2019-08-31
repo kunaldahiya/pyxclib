@@ -36,7 +36,7 @@ def binarize(X, copy=False):
     """
         Binarize a sparse matrix
     """
-    X.data[:] = 1.0
+    X.data.fill(1)
     return X
 
 
