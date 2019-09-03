@@ -4,16 +4,6 @@ from scipy.sparse import save_npz
 import os
 
 
-def sigmoid(X):
-    return 1/(1+np.exp(-X))
-
-def _get_valid_indices(labels, start_idx, end_idx):
-    assert end_idx != -1
-    freq = np.array(labels[:, start_idx:end_idx].sum(axis=1))
-    indices = np.where(freq.ravel())[0]
-    return indices
-
-
 def merge_predictions(pred_0, pred_1, beta):
     return beta*pred_0 + (1-beta)*pred_1
 
@@ -24,21 +14,8 @@ def convert_to_sparse(weight, bias):
     return csr_matrix(weight), csr_matrix(bias).transpose()
 
 
-def get_valid_labels(labels):
-    freq = np.sum(abs(labels), axis=0)
-    indices = np.where(freq > 0)[1]
-    return indices
-
-
-def map_to_original(mat, mapping, _shape, axis=1):
-    mat = mat.tocsr()
-    row_idx, col_idx = mat.nonzero()
-    vals = np.array(mat[row_idx, col_idx]).squeeze()
-    col_indices = list(map(lambda x: mapping[x], col_idx))
-    return csr_matrix((vals, (np.array(row_idx), np.array(col_indices))), shape=_shape)
-
-
-def _update_predicted(start_idx, predicted_batch_labels, predicted_labels, top_k=10):
+def _update_predicted(start_idx, predicted_batch_labels, 
+                      predicted_labels, top_k=10):
     """
         Update the predicted answers for the batch
         Args:
@@ -52,7 +29,6 @@ def _update_predicted(start_idx, predicted_batch_labels, predicted_labels, top_k
         ind[:, 0] = np.repeat(np.arange(0, batch_size, 1), [k]*batch_size)
         ind[:, 1] = top_ind.flatten('C')
         return top_ind.flatten('C'), vec[ind[:, 0], ind[:, 1]]
-
     batch_size = predicted_batch_labels.shape[0]
     top_indices, top_vals = _select_topk(predicted_batch_labels, k=top_k)
     ind = np.zeros((top_k*batch_size, 2), dtype=np.int)
@@ -93,15 +69,16 @@ def _update_predicted_shortlist(start_idx, predicted_batch_labels,
     predicted_labels[ind[:, 0], ind[:, 1]] = vals
     
 
-def save_predictions(preds, result_dir, valid_labels, num_samples, num_labels, _fnames=['knn', 'clf']):
+def save_predictions(preds, result_dir, valid_labels, num_samples, 
+                     num_labels, _fnames=['knn', 'clf']):
     if isinstance(preds, tuple):
         for _, (_pred, _fname) in enumerate(zip(preds, _fnames)):
             predicted_labels = map_to_original(
                 _pred, valid_labels, _shape=(num_samples, num_labels))
             save_npz(os.path.join(
-                result_dir, 'predictions_{}.npz'.format(_fname)), predicted_labels)
+                result_dir, 'predictions_{}.npz'.format(
+                    _fname)), predicted_labels)
     else:
         predicted_labels = map_to_original(
             preds, valid_labels, _shape=(num_samples, num_labels))
         save_npz(os.path.join(result_dir, 'predictions.npz'), predicted_labels)
-        
