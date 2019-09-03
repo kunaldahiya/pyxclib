@@ -2,27 +2,32 @@ from ._sparse import rank, read_file, read_file_safe
 from scipy.sparse import csr_matrix, isspmatrix
 import numpy as np
 import warnings
-from sklearn.preprocessing import normalize
+from sklearn.preprocessing import normalize as sk_normalize
 
 
 def rankdata(X):
-    '''
-        Rank of each element in decreasing order (per-row)
-        Ranking will start from one (with zero at zero entries)
+    '''Rank of each element in decreasing order (per-row)
+    Ranking will start from one (with zero at zero entries)
     '''
     ranks = rank(X.data, X.indices, X.indptr)
     return csr_matrix((ranks, X.indices, X.indptr), shape=X.shape)
 
 
 def retain_topk(X, copy=True, k=5):
-    """
-        Retain topk values of each row and make everything else zero
-        Args:
-            X: csr_matrix: sparse mat
-            copy: boolean: copy data or change original array
-            k: int: retain these many values
-        Returns:
-            X: csr_matrix: sparse mat with only k entries in each row
+    """Retain topk values of each row and make everything else zero
+    Arguments:
+    ---------
+    X: csr_matrix
+        sparse matrix
+    copy: boolean, optional, default=True
+        copy data or change original array
+    k: int, optional, default=5
+        retain these many values
+   
+    Returns:
+    --------
+    X: csr_matrix
+        sparse mat with only k entries in each row
     """
     ranks = rankdata(X)
     if copy:
@@ -33,8 +38,7 @@ def retain_topk(X, copy=True, k=5):
 
 
 def binarize(X, copy=False):
-    """
-        Binarize a sparse matrix
+    """Binarize a sparse matrix
     """
     X.data.fill(1)
     return X
@@ -50,8 +54,7 @@ def gen_shape(indices, indptr, zero_based=True):
 
 
 def expand_indptr(num_rows_inferred, num_rows, indptr):
-    """
-        Expand indptr if inferred num_rows is less than given
+    """Expand indptr if inferred num_rows is less than given
     """
     _diff = num_rows - num_rows_inferred
     if _diff > 0:  # Fix indptr as per new shape
@@ -65,15 +68,21 @@ def expand_indptr(num_rows_inferred, num_rows, indptr):
 
 
 def tuples_to_sparse(X, shape=None, dtype='float32', zero_based=True):
-    """
-        Convert a list of list of tuples to a csr_matrix
-        Args:
-            X: list of list of tuples: nnz indices for each row
-            dtype: 'str': for data
-            zero_based: boolean or "auto": indices are zero based or not
-            shape: tuple: given shape 
-        Returns:
-            X: csr_matrix
+    """Convert a list of list of tuples to a csr_matrix
+    Arguments:
+    ---------
+    X: list of list of tuples
+        nnz indices for each row
+    shape: tuple or none, optional, default=None
+        Use this shape or infer from data
+    dtype: 'str', optional, default='float32'
+        datatype for data
+    zero_based: boolean or "auto", default=True
+        indices are zero based or not
+  
+    Returns:
+    --------
+    X: csr_matrix
     """
     indices = []
     data = []
@@ -90,19 +99,27 @@ def tuples_to_sparse(X, shape=None, dtype='float32', zero_based=True):
         assert _shape[0] <= shape[0], "num_rows_inferred > num_rows_given"
         assert _shape[1] <= shape[1], "num_cols_inferred > num_cols_given"
         indptr = expand_indptr(_shape[0], shape[0], indptr)
-    return csr_matrix((np.array(data, dtype=dtype), np.array(indices), np.array(indptr)), shape=shape)
+    return csr_matrix(
+        (np.array(data, dtype=dtype), np.array(indices), np.array(indptr)),
+        shape=shape)
 
 
 def ll_to_sparse(X, shape=None, dtype='float32', zero_based=True):
-    """
-        Convert a list of list to a csr_matrix; All values are 1.0
-        Args:
-            X: list of list: nnz indices for each row
-            dtype: 'str': for data
-            zero_based: boolean or "auto": indices are zero based or not
-            shape: tuple: given shape 
-        Returns:
-            X: csr_matrix
+    """Convert a list of list to a csr_matrix; All values are 1.0
+    Arguments:
+    ---------
+    X: list of list of tuples
+        nnz indices for each row
+    shape: tuple or none, optional, default=None
+        Use this shape or infer from data
+    dtype: 'str', optional, default='float32'
+        datatype for data
+    zero_based: boolean or "auto", default=True
+        indices are zero based or not
+   
+    Returns:
+    -------
+    X: csr_matrix
     """
     indices = []
     indptr = [0]
@@ -118,23 +135,28 @@ def ll_to_sparse(X, shape=None, dtype='float32', zero_based=True):
         assert _shape[0] <= shape[0], "num_rows_inferred > num_rows_given"
         assert _shape[1] <= shape[1], "num_cols_inferred > num_cols_given"
         indptr = expand_indptr(_shape[0], shape[0], indptr)
-    return csr_matrix((np.array(data, dtype=dtype), np.array(indices), np.array(indptr)), shape=shape)
+    return csr_matrix(
+        (np.array(data, dtype=dtype), np.array(indices), np.array(indptr)),
+        shape=shape)
 
 
-def normalize_data(X, norm='l2', copy=True):
+def normalize(X, norm='l2', copy=False):
+    """Normalize sparse or dense matrix
+    Arguments:
+    ---------
+    X: csr_matrix or csc_matrix
+        sparse matrix
+    norm: str, optional, default='l2'
+        normalize with l1/l2
+    copy: boolean, optional, default=False 
+        whether to copy data or not
     """
-        Normalize sparse or dense matrix
-        Args:
-            X: sparse or dense/matrix
-            norm: normalize with l1/l2
-            copy: whether to copy data or not
-    """
-    features = normalize(X, norm=norm, copy=copy)
+    features = sk_normalize(X, norm=norm, copy=copy)
     return features
 
 
 def _read_file_safe(f, dtype, zero_based, query_id,
-               offset=0, length=-1, header=True):
+                    offset=0, length=-1, header=True):
     def _handle_header(f, header):
         num_cols, num_rows = None, None
         if header:
@@ -145,13 +167,13 @@ def _read_file_safe(f, dtype, zero_based, query_id,
         f, _header_shape = _handle_header(f, header)
         actual_dtype, data, ind, indptr, query = \
             read_file_safe(f, dtype, zero_based, query_id,
-                      offset, length)
+                           offset, length)
     else:
         with _gen_open(f) as f:
             f, _header_shape = _handle_header(f, header)
             actual_dtype, data, ind, indptr, query = \
                 read_file_safe(f, dtype, zero_based, query_id,
-                          offset, length)
+                               offset, length)
 
     data = np.frombuffer(data, actual_dtype)
     indices = np.frombuffer(ind, np.int64)
@@ -203,3 +225,38 @@ def sigmoid(X):
     """
     X.data = 1/(1+np.exp(-X.data))
     return X
+
+
+def _map_rows(X):
+    """Indices should not be repeated
+    Will not convert to dense
+    """
+    X = X.tocsr()  # Avoid this?
+    row_idx, col_idx = X.nonzero()
+    vals = np.array(X[row_idx, col_idx]).squeeze()
+    row_indices = list(map(lambda x: mapping[x], row_idx))
+    return csr_matrix(
+        (vals, (np.array(row_indices), np.array(col_idx))), shape=shape)
+
+
+def _map_cols(X, mapping, shape):
+    """Indices should not be repeated
+    Will not convert to dense
+    """
+    X = X.tocsr()
+    row_idx, col_idx = X.nonzero()
+    vals = np.array(X[row_idx, col_idx]).squeeze()
+    col_indices = list(map(lambda x: mapping[x], col_idx))
+    return csr_matrix(
+        (vals, (np.array(row_idx), np.array(col_indices))), shape=shape)
+
+
+def _map(X, mapping, shape, axis=1):
+    """Map sparse matrix as per given mapping
+    """
+    if axis == 1:
+        return map_cols(X, mapping, shape)
+    elif axis == 0:
+        return map_rows(X, mapping, shape)
+    else:
+        raise NotImplementedError("Unknown axis for sparse matrix!")
