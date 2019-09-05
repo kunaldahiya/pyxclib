@@ -9,18 +9,25 @@ from numba import jit
 import time
 
 
-def construct_shortlist(method, num_neighbours, M, efC, efS, order='centroids', space='cosine',
-                        num_threads=-1, num_clusters=1, threshold_freq=10000, verbose=False):
+def construct_shortlist(method, num_neighbours, M, efC, efS,
+                        order='centroids', space='cosine',
+                        num_threads=-1, num_clusters=1,
+                        threshold_freq=10000, verbose=True):
     if order == 'centroids':
-        return ShortlistCentroids(method, num_neighbours, M, efC, efS, space, num_threads, num_clusters, threshold_freq, verbose)
+        return ShortlistCentroids(
+            method, num_neighbours, M, efC, efS, space,
+            num_threads, num_clusters, threshold_freq, verbose)
     elif order == 'instances':
-        return ShortlistInstances(method, num_neighbours, M, efC, efS, space, num_threads, verbose)
+        return ShortlistInstances(
+            method, num_neighbours, M, efC, efS, space,
+            num_threads, verbose)
     else:
         raise NotImplementedError("Unknown order")
 
 
 class ShortlistBase(object):
-    def __init__(self, method, num_neighbours, M, efC, efS, space, num_threads=-1, verbose=False):
+    def __init__(self, method, num_neighbours, M, efC, efS, space,
+                 num_threads=-1, verbose=False):
         self.method = method
         self.space = space
         self.verbose = verbose
@@ -34,29 +41,32 @@ class ShortlistBase(object):
 
     def _construct(self):
         if self.method == 'brute':
-            self.index = NearestNeighbor(num_neighbours=self.num_neighbours,
-                                         method='brute',
-                                         num_threads=self.num_threads,
-                                         space=self.space
-                                         )
+            self.index = NearestNeighbor(
+                num_neighbours=self.num_neighbours,
+                method='brute',
+                num_threads=self.num_threads,
+                space=self.space
+            )
         elif self.method == 'hnsw':
-            self.index = HNSW(M=self.M,
-                              efC=self.efC,
-                              efS=self.efS,
-                              num_neighbours=self.num_neighbours,
-                              num_threads=self.num_threads,
-                              space=self.space,
-                              verbose=self.verbose
-                              )
+            self.index = HNSW(
+                M=self.M,
+                efC=self.efC,
+                efS=self.efS,
+                num_neighbours=self.num_neighbours,
+                num_threads=self.num_threads,
+                space=self.space,
+                verbose=self.verbose
+            )
         elif self.method == 'hnswm':
-            self.index = HNSWM(M=self.M,
-                               efC=self.efC,
-                               efS=self.efS,
-                               num_neighbours=self.num_neighbours,
-                               num_threads=self.num_threads,
-                               space=self.space,
-                               verbose=self.verbose
-                               )
+            self.index = HNSWM(
+                M=self.M,
+                efC=self.efC,
+                efS=self.efS,
+                num_neighbours=self.num_neighbours,
+                num_threads=self.num_threads,
+                space=self.space,
+                verbose=self.verbose
+            )
         else:
             print("Unknown NN method!")
 
@@ -72,12 +82,16 @@ class ShortlistBase(object):
         self._construct()
 
     def __repr__(self):
-        return "Method: {}, efC: {}, efS: {}, num_neighbors: {}".format(self.method, self.efC, self.efS, self.num_neighbours)
+        return "Method: {}, efC: {}, efS: {}"
+        ", num_neighbors: {}".format(
+            self.method, self.efC, self.efS, self.num_neighbours)
 
 
 class ShortlistInstances(ShortlistBase):
-    def __init__(self, method, num_neighbours, M, efC, efS, space, num_threads=-1, verbose=False):
-        super().__init__(method, num_neighbours, M, efC, efS, space, num_threads, verbose)
+    def __init__(self, method, num_neighbours, M, efC, efS,
+                 space, num_threads=-1, verbose=False):
+        super().__init__(method, num_neighbours, M, efC, efS,
+                         space, num_threads, verbose)
         self.labels = None
 
     def _compute_similarity(self, distances):
@@ -115,8 +129,12 @@ class ShortlistInstances(ShortlistBase):
 
     def save(self, fname):
         self.index.save(fname+".index")
-        pickle.dump({'labels': self.labels, 'M': self.M, 'efC': self.efC, 'efS': self.efS,
-                     'num_neighbours': self.num_neighbours, 'space': self.space}, open(fname+".label", 'wb'))
+        pickle.dump(
+            {'labels': self.labels,
+             'M': self.M, 'efC': self.efC,
+             'efS': self.efS,
+             'num_neighbours': self.num_neighbours,
+             'space': self.space}, open(fname+".label", 'wb'))
 
     def load(self, fname):
         self.index.load(fname+".index")
@@ -129,9 +147,12 @@ class ShortlistInstances(ShortlistBase):
 
 
 class ShortlistCentroids(ShortlistBase):
-    def __init__(self, method, num_neighbours, M, efC, efS, space, num_threads=-1,
-                 num_clusters=1, threshold_freq=10000, verbose=False):
-        super().__init__(method, num_neighbours, M, efC, efS, space, num_threads, verbose)
+    def __init__(self, method, num_neighbours, M, efC,
+                 efS, space, num_threads=-1, num_clusters=1,
+                 threshold_freq=10000, verbose=False):
+        super().__init__(
+            method, num_neighbours, M, efC,
+            efS, space, num_threads, verbose)
         self.num_clusters = num_clusters
         self.threshold_freq = threshold_freq
         self.label_mapping = None
@@ -142,9 +163,10 @@ class ShortlistCentroids(ShortlistBase):
             Cluster instances for specific labels
         """
         num_features = features.shape[1]
-        _clusters = Cluster(indices=extf_labels, embedding_dims=num_features,
-                            num_clusters=self.num_clusters, max_iter=50, n_init=2,
-                            num_threads=-1)
+        _clusters = Cluster(
+            indices=extf_labels, embedding_dims=num_features,
+            num_clusters=self.num_clusters, max_iter=50, n_init=2,
+            num_threads=-1)
         _clusters.fit(features, labels)
         return _clusters.predict()
 
@@ -249,6 +271,8 @@ class ShortlistCentroids(ShortlistBase):
         self.threshold_freq = obj['threshold_freq']
 
     def __repr__(self):
-        return "Method: {}, efC: {}, efS: {}, num_neighbors: {}, num_clusters:{}, " \
-            "threshold_freq:{}".format(self.method, self.efC, self.efS, self.num_neighbours,
-                                       self.num_clusters, self.threshold_freq)
+        return "Method: {}, efC: {}, efS: {},"
+        "num_neighbors: {}, num_clusters:{}, " \
+            "threshold_freq:{}".format(
+                self.method, self.efC, self.efS, self.num_neighbours,
+                self.num_clusters, self.threshold_freq)

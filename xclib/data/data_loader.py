@@ -110,7 +110,7 @@ class DataloaderBase(object):
             self.valid_labels = self.labels.remove_invalid()
         self._gen_batches()
 
-    def _create_instance_batch(self, batch_indices):        
+    def _create_instance_batch(self, batch_indices):
         batch_data = {}
         batch_data['data'] = self.features.data
         batch_data['ind'] = batch_indices
@@ -215,23 +215,45 @@ class Dataloader(DataloaderBase):
 
 
 class DataloaderShortlist(DataloaderBase):
-    """
-        Dataloader object for 1-vs-all classifiers
-        Works for sparse and dense features
-        Params:
-            features: csr_matrix or np.ndarray
-            labels: csr_matrix: (num_samples, num_labels)
-            batch_size: int: label batch size
-            use_sparse: bool: use sparse features or dense
-            use_shortlist: train using all negatives or shortlist
+    """Base Dataloader for 1-vs-all extreme classifiers
+    Works for sparse and dense features
+    Parameters:
+    -----------
+    data_dir: str
+        data directory with all files
+    dataset: str
+        Name of the dataset; like EURLex-4K
+    feat_fname: str
+        File name of training feature file
+        Should be in sparse format with header
+    label_fname: str
+        File name of training label file
+        Should be in sparse format with header
+    batch_size: int, optional, default=1000
+        train these many classifiers in parallel
+    feature_type: str, optional, default='sparse'
+        feature type: sparse or dense
+    mode: str, optional, default='train'
+        train or predict
+        - remove invalid labels in train
+    batch_order: str, optional, default='labels'
+        iterate over labels or instances
+    norm: str, optional, default='l2'
+        normalize features
+    start_index: int, optional, default=0
+        start training from this labels index
+    end_index: int, optional, default=-1
+        train till this labels index
     """
 
-    def __init__(self, batch_size, feature_type, mode='train',
-                 batch_order='labels', norm='l2', 
-                 start_index=0, end_index=-1):
+    def __init__(self, data_dir, dataset, feat_fname, label_fname,
+                 batch_size, feature_type, mode='train',
+                 batch_order='labels', norm='l2', start_index=0,
+                 end_index=-1):
         # TODO Option to load only features; useful in prediction
-        super().__init__(batch_size, feature_type, mode, batch_order, norm,
-                    start_index, end_index)
+        super().__init__(data_dir, dataset, feat_fname, label_fname,
+                         batch_size, feature_type, mode, batch_order, norm,
+                         start_index, end_index)
 
     def _create_label_batch(self, batch_indices):
         batch_data = []
@@ -239,9 +261,9 @@ class DataloaderShortlist(DataloaderBase):
             item = {}
             item['data'] = self.features.data
             #  TODO Check if this could be done more efficiently
-            temp = self.labels.index_select(idx) 
-            item['ind'] = temp.__dict__['indices']
-            item['Y'] = temp.__dict__['data']
+            temp = self.labels.index_select(idx)
+            item['ind'] = temp.indices
+            item['Y'] = temp.data
             batch_data.append(item)
         return batch_data
 
@@ -253,12 +275,14 @@ class DataloaderShortlist(DataloaderBase):
 
     def update_data_shortlist(self, shortlist_indices, shortlist_dist):
         # TODO Remove this loop
-        self.labels_ = self.labels_.tolil() # Avoid this?
+        _labels = self.labels.data.tolil()  # Avoid this?
         for idx in range(self.num_instances):
-            pos_labels = self.labels_[idx, :].__dict__['rows'][0]
-            neg_labels = list(filter(lambda x: x not in set(pos_labels), shortlist_indices[idx]))
-            self.labels_[idx, neg_labels] = -1
-        self.labels_ = self.labels_.tocsc()
+            pos_labels = _labels[idx, :].__dict__['rows'][0]
+            neg_labels = list(
+                filter(lambda x: x not in set(pos_labels),
+                       shortlist_indices[idx]))
+            _labels[idx, neg_labels] = -1
+        self.labels.data = _labels
 
     def __iter__(self):
         for _, batch_indices in enumerate(self.batches):

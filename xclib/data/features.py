@@ -61,6 +61,8 @@ class FeaturesBase(object):
             fname = os.path.join(data_dir, fname)
             if fname.lower().endswith('.pkl'):
                 return pickle.load(open(fname, 'rb'))['X']
+            elif fname.lower().endswith('.npy'):
+                return np.load(fname)
             elif fname.lower().endswith('.txt'):
                 return data_utils.read_sparse_file(
                     fname, dtype=np.float32)

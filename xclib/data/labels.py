@@ -102,3 +102,11 @@ class LabelsBase(object):
     def __getitem__(self, index):
         return self.Y[index] if self._valid else None
 
+    @property
+    def data(self):
+        return self.Y
+
+    @data.setter
+    def data(self, _Y):
+        self.Y = _Y
+        self.adjust_sparse_format()

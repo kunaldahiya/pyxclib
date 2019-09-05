@@ -35,7 +35,7 @@ class NearestNeighbor(object):
 
 
 class HNSW(object):
-    def __init__(self, M, efC, efS, num_neighbours, space='cosine', num_threads=12, verbose=False):
+    def __init__(self, M, efC, efS, num_neighbours, space='cosine', num_threads=12, verbose=True):
         if space == 'cosine':
             space = 'cosinesimil'
         self.verbose = verbose
