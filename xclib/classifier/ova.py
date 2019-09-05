@@ -85,9 +85,6 @@ class OVAClassifier(BaseClassifier):
         self.logger = logging.getLogger('OVAClassifier')
 
     def _merge_weights(self, weights, biases):
-        """
-            Transposed classifiers before saving.
-        """
         # Bias is always a dense array
         if self.feature_type == 'sparse':
             self.weight = sp.vstack(
@@ -223,7 +220,7 @@ class OVAClassifier(BaseClassifier):
             data_dir, dataset, feat_fname, label_fname, 'predict', 'instances')
         num_instances = data.num_instances
         predicted_labels = sp.lil_matrix(
-            (num_instances, data.num_labels), dtype=np.float32)
+            (num_instances, self.num_labels), dtype=np.float32)
         start_time = time.time()
         start_idx = 0
         num_batches = data.num_batches
