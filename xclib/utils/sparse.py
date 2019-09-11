@@ -1,16 +1,46 @@
-from ._sparse import rank, read_file, read_file_safe
+from ._sparse import _rank, read_file, read_file_safe, _topk
 from scipy.sparse import csr_matrix, isspmatrix
 import numpy as np
 import warnings
 from sklearn.preprocessing import normalize as sk_normalize
 
 
-def rankdata(X):
+def rank(X):
     '''Rank of each element in decreasing order (per-row)
     Ranking will start from one (with zero at zero entries)
     '''
-    ranks = rank(X.data, X.indices, X.indptr)
+    ranks = _rank(X.data, X.indices, X.indptr)
     return csr_matrix((ranks, X.indices, X.indptr), shape=X.shape)
+
+
+def topk(X, k, pad_ind, pad_val, return_values=False):
+    """Get top-k indices and values for a sparse (csr) matrix
+    Arguments:
+    ---------
+    X: csr_matrix
+        sparse matrix
+    k: int
+        values to select
+    pad_ind: int
+        padding index for indices array
+        Useful when number of values in a row are less than k
+    pad_val: int
+        padding index for values array
+        Useful when number of values in a row are less than k
+    return_values: boolean, optional, default=False
+        Return topk values or not
+    Returns:
+    --------
+    ind: np.ndarray
+        topk indices; size=(num_rows, k)
+    val: np.ndarray, optional
+        topk val; size=(num_rows, k)
+    """
+    ind, val = _topk(X.data, X.indices, X.indptr, k, pad_ind, pad_val)
+    if return_vals:
+        return ind, val
+    else:
+        return ind
 
 
 def retain_topk(X, copy=True, k=5):
@@ -29,7 +59,7 @@ def retain_topk(X, copy=True, k=5):
     X: csr_matrix
         sparse mat with only k entries in each row
     """
-    ranks = rankdata(X)
+    ranks = rank(X)
     if copy:
         X = X.copy()
     X[ranks > k] = 0.0
@@ -40,6 +70,8 @@ def retain_topk(X, copy=True, k=5):
 def binarize(X, copy=False):
     """Binarize a sparse matrix
     """
+    if copy:
+        X = X.copy()
     X.data.fill(1)
     return X
 
@@ -227,7 +259,7 @@ def sigmoid(X):
     return X
 
 
-def _map_rows(X):
+def _map_rows(X, mapping, shape):
     """Indices should not be repeated
     Will not convert to dense
     """
