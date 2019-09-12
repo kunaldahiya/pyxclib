@@ -37,7 +37,7 @@ def topk(X, k, pad_ind, pad_val, return_values=False):
         topk val; size=(num_rows, k)
     """
     ind, val = _topk(X.data, X.indices, X.indptr, k, pad_ind, pad_val)
-    if return_vals:
+    if return_values:
         return ind, val
     else:
         return ind
