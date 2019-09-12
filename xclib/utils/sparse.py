@@ -13,7 +13,7 @@ def rank(X):
     return csr_matrix((ranks, X.indices, X.indptr), shape=X.shape)
 
 
-def topk(X, k, pad_ind, pad_val, return_values=False):
+def topk(X, k, pad_ind, pad_val, return_values=False, dtype=np.float32):
     """Get top-k indices and values for a sparse (csr) matrix
     Arguments:
     ---------
@@ -38,7 +38,7 @@ def topk(X, k, pad_ind, pad_val, return_values=False):
     """
     ind, val = _topk(X.data, X.indices, X.indptr, k, pad_ind, pad_val)
     if return_values:
-        return ind, val
+        return ind, val.astype(dtype)
     else:
         return ind
 
