@@ -3,7 +3,7 @@
 """
 import scipy.sparse as sp
 import numpy as np
-
+from xclib.utils.sparse import topk
 __author__ = 'X'
 
 
@@ -80,7 +80,7 @@ class Metrices(object):
         if self.valid_idx is not None:
             predicted_labels = predicted_labels[self.valid_idx]
         assert predicted_labels.shape == self.true_labels.shape
-        predicted_labels = self._rank_sparse(predicted_labels, K)
+        predicted_labels = topk(predicted_labels, K, self.num_labels, -100)
         prec = self.precision(predicted_labels, K)
         ndcg = self.nDCG(predicted_labels, K)
         if self.inv_propensity_scores is not None:
