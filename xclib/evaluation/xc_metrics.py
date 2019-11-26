@@ -3,8 +3,56 @@
 """
 import scipy.sparse as sp
 import numpy as np
-from xclib.utils.sparse import topk
+from xclib.utils.sparse import topk, binarize, retain_topk
 __author__ = 'X'
+
+
+def jaccard_similarity(pred_0, pred_1, y=None): 
+    """Jaccard similary b/w two different predictions matrices
+    Args:
+    pred_0: csr_matrix
+        prediction for algorithm 0
+    pred_1: csr_matrix
+        prediction for algorithm 1
+    y: csr_matrix or None
+        true labels
+    """
+    def _correct_only(pred, y):
+        pred = pred.multiply(y)
+        pred.eliminate_zeros()
+        return pred
+
+    def _safe_divide(a, b):
+        with np.errstate(divide='ignore', invalid='ignore'):
+            out = np.true_divide(a, b)
+            out[out == np.inf] = 0
+            return np.nan_to_num(out)
+
+    if y is not None:
+        pred_0 = _correct_only(pred_0, y)
+        pred_1 = _correct_only(pred_1, y)
+
+    pred_0, pred_1 = binarize(pred_0), binarize(pred_1)
+    intersection = np.array(pred_0.multiply(pred_1).sum(axis=1)).ravel()
+    union = np.array(binarize(pred_0 + pred_1).sum(axis=1)).ravel()
+    return np.mean(_safe_divide(intersection, union))
+
+
+def recall(predicted_labels, true_labels, k=5):
+    """Compute recall@k
+    Args:
+    predicted_labels: csr_matrix
+        predicted labels
+    true_labels: csr_matrix
+        true_labels
+    k: int, default=5
+        keep only top-k predictions
+    """
+    predicted_labels = retain_topk(predicted_labels, k)
+    denom = np.sum(true_labels, axis=1)
+    rc = binarize(true_labels.multiply(predicted_labels))
+    rc = np.sum(rc, axis=1)/(denom+1e-5)
+    return np.mean(rc)*100
 
 
 def format(*args, decimal_points='%0.2f'):
