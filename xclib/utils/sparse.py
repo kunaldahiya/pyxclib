@@ -13,7 +13,7 @@ def rank(X):
     return csr_matrix((ranks, X.indices, X.indptr), shape=X.shape)
 
 
-def topk(X, k, pad_ind, pad_val, return_values=False, dtype=np.float32):
+def topk(X, k, pad_ind, pad_val, return_values=False, dtype='float32'):
     """Get top-k indices and values for a sparse (csr) matrix
     Arguments:
     ---------
@@ -29,6 +29,7 @@ def topk(X, k, pad_ind, pad_val, return_values=False, dtype=np.float32):
         Useful when number of values in a row are less than k
     return_values: boolean, optional, default=False
         Return topk values or not
+    
     Returns:
     --------
     ind: np.ndarray
@@ -287,8 +288,8 @@ def _map(X, mapping, shape, axis=1):
     """Map sparse matrix as per given mapping
     """
     if axis == 1:
-        return map_cols(X, mapping, shape)
+        return _map_cols(X, mapping, shape)
     elif axis == 0:
-        return map_rows(X, mapping, shape)
+        return _map_rows(X, mapping, shape)
     else:
         raise NotImplementedError("Unknown axis for sparse matrix!")
