@@ -38,7 +38,7 @@ def jaccard_similarity(pred_0, pred_1, y=None):
     return np.mean(_safe_divide(intersection, union))
 
 
-def recall(predicted_labels, true_labels, k=5):
+def recall(predicted_labels, true_labels, k=5, copy=False):
     """Compute recall@k
     Args:
     predicted_labels: csr_matrix
@@ -48,7 +48,7 @@ def recall(predicted_labels, true_labels, k=5):
     k: int, default=5
         keep only top-k predictions
     """
-    predicted_labels = retain_topk(predicted_labels, k)
+    predicted_labels = retain_topk(predicted_labels, copy=copy, k=k)
     denom = np.sum(true_labels, axis=1)
     rc = binarize(true_labels.multiply(predicted_labels))
     rc = np.sum(rc, axis=1)/(denom+1e-5)
