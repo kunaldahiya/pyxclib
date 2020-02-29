@@ -155,7 +155,8 @@ def read_sparse_file(file, n_features=None, dtype='float32', zero_based=True,
                                                           bool(zero_based),
                                                           bool(query_id),
                                                           offset=offset,
-                                                          length=length)
+                                                          length=length,
+                                                          header=header)
         if (zero_based is False or zero_based == "auto" and (len(indices) > 0 and np.min(indices) > 0)):
             indices -= 1
         n_f = (indices.max() if len(indices) else 0) + 1  # Num features
@@ -177,14 +178,15 @@ def read_sparse_file(file, n_features=None, dtype='float32', zero_based=True,
             indptr = expand_indptr(shape[0], _header_shape[0], indptr)
             shape = _header_shape
         X = csr_matrix((data, indices, indptr), shape)
-    else: # Just use header shape
+    else:  # Just use header shape
         data, rows, cols, \
             query_values, _header_shape = _read_file(file,
                                                      dtype,
                                                      bool(zero_based),
                                                      bool(query_id),
                                                      offset=offset,
-                                                     length=length)
+                                                     length=length,
+                                                     header=header)
         if (zero_based is False or zero_based == "auto" and (len(cols) > 0 and np.min(cols) > 0)):
             cols -= 1
         # Will sum if indices are repeated
@@ -198,7 +200,7 @@ def read_sparse_file(file, n_features=None, dtype='float32', zero_based=True,
 
 def write_data(filename, features, labels, header=True):
     """Write data in sparse format
-    
+
     Arguments
     ---------
     filename: str
@@ -258,7 +260,8 @@ def read_data(filename, header=True, dtype='float32', zero_based=True):
         else:
             num_samples, num_feat, num_labels = None, None, None
         features, labels = load_svmlight_file(f, multilabel=True)
-        labels = ll_to_sparse(labels, dtype=dtype, zero_based=zero_based, shape=_l_shape)
+        labels = ll_to_sparse(
+            labels, dtype=dtype, zero_based=zero_based, shape=_l_shape)
     return features, labels, num_samples, num_feat, num_labels
 
 
@@ -281,7 +284,7 @@ def write_corpus(fname, uid, title, text, label):
 
     Arguments
     ---------
-    fname: str 
+    fname: str
         path of the output file
     uid: list of str/int
         unique identifier for each document
@@ -300,9 +303,9 @@ def write_corpus(fname, uid, title, text, label):
 
     def _create_json_str(_uid, _title, _text, _label_ind, label_rel):
         return json.dumps(
-            {'uid': _uid, 'title': _title, 
-            'content': _text, 'target_ind': _label_ind, 
-            'target_rel': label_rel})
+            {'uid': _uid, 'title': _title,
+             'content': _text, 'target_ind': _label_ind,
+             'target_rel': label_rel})
 
     if issparse(label):
         label.eliminate_zeros()
