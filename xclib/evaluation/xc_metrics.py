@@ -416,7 +416,9 @@ class Metrics(object):
         "inserting dummpy index"
         self.ndcg_denominator = np.cumsum(
             1/np.log2(np.arange(1, self.num_labels+1)+1))
-        self.inv_psp = np.ravel(inv_psp)
+        self.inv_psp = None
+        if inv_psp is not None:
+            self.inv_psp = np.ravel(inv_psp)
 
     def eval(self, predicted_labels, K=5):
         """
