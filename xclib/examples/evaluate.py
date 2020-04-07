@@ -28,17 +28,17 @@ def main(targets_file, train_file, predictions_file, A, B):
     true_labels = data_utils.read_sparse_file(targets_file)
     predicted_labels = data_utils.read_sparse_file(predictions_file)
     inv_propen = compute_inv_propensity(train_file, A, B)
-    acc = xc_metrics.Metrices(true_labels=true_labels,
-                              inv_propensity_scores=inv_propen,
-                              remove_invalid=False)
+    acc = xc_metrics.Metrics(true_labels=true_labels,
+                             inv_propensity_scores=inv_propen,
+                             remove_invalid=False)
     args = acc.eval(predicted_labels, 5)
     print(xc_metrics.format(*args))
 
 
 if __name__ == '__main__':
     train_file = sys.argv[1]
-    targets_file = sys.argv[2]  
-    predictions_file = sys.argv[3] 
+    targets_file = sys.argv[2]
+    predictions_file = sys.argv[3]
     A = float(sys.argv[4])
     B = float(sys.argv[5])
     main(targets_file, train_file, predictions_file, A, B)

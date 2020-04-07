@@ -3,6 +3,7 @@ from scipy.sparse import csr_matrix, isspmatrix
 import numpy as np
 import warnings
 from sklearn.preprocessing import normalize as sk_normalize
+from scipy.special import expit
 
 
 def rank(X):
@@ -256,7 +257,7 @@ def sigmoid(X):
     X: csr_matrix
         sparse matrix in csr format
     """
-    X.data = 1/(1+np.exp(-X.data))
+    X.data = expit(X.data)
     return X
 
 
