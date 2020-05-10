@@ -67,7 +67,7 @@ def _update_predicted_shortlist(start_idx, predicted_batch_labels,
     ind[:, 1] = _select_2d(shortlist, top_indices)
     vals = top_values.flatten('C')
     predicted_labels[ind[:, 0], ind[:, 1]] = vals
-    
+
 
 def save_predictions(preds, result_dir, valid_labels, num_samples, 
                      num_labels, _fnames=['knn', 'clf']):

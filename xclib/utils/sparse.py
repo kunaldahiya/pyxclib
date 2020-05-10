@@ -30,7 +30,6 @@ def topk(X, k, pad_ind, pad_val, return_values=False, dtype='float32'):
         Useful when number of values in a row are less than k
     return_values: boolean, optional, default=False
         Return topk values or not
-    
     Returns:
     --------
     ind: np.ndarray
@@ -55,7 +54,7 @@ def retain_topk(X, copy=True, k=5):
         copy data or change original array
     k: int, optional, default=5
         retain these many values
-   
+
     Returns:
     --------
     X: csr_matrix
@@ -150,7 +149,7 @@ def ll_to_sparse(X, shape=None, dtype='float32', zero_based=True):
         datatype for data
     zero_based: boolean or "auto", default=True
         indices are zero based or not
-   
+
     Returns:
     -------
     X: csr_matrix
@@ -174,6 +173,38 @@ def ll_to_sparse(X, shape=None, dtype='float32', zero_based=True):
         shape=shape)
 
 
+def csr_from_arrays(indices, values, shape=None, dtype='float32'):
+    """
+    Convert given indices and their corresponding values
+    to a csr_matrix
+
+    indices[i, j] => value[i, j]
+
+    Arguments:
+    indices: np.ndarray
+        array with indices; type should be int
+    values: np.ndarray
+        array with values
+    shape: tuple, optional, default=None
+        Infer shape from indices when None
+        * Throws error in case of invalid shape
+        * Rows in indices and vals must match the given shape
+        * Cols in indices must be less than equal to given shape
+    """
+    assert indices.shape == values.shape, "Shapes for ind and vals must match"
+    num_rows, num_cols = indices.shape[0], np.max(indices)+1
+    if shape is not None:
+        assert num_rows == shape[0], "num_rows_inferred != num_rows_given"
+        assert num_cols <= shape[1], "num_cols_inferred > num_cols_given"
+    else:
+        shape = (num_rows, num_cols)
+    # Need the last values (hence +1)
+    indptr = np.arange(0, indices.size + 1, indices.shape[1])
+    data = values.flatten()
+    indices = indices.flatten()
+    return csr_matrix((data, indices, indptr), shape=shape)
+
+
 def normalize(X, norm='l2', copy=False):
     """Normalize sparse or dense matrix
     Arguments:
@@ -182,7 +213,7 @@ def normalize(X, norm='l2', copy=False):
         sparse matrix
     norm: str, optional, default='l2'
         normalize with l1/l2
-    copy: boolean, optional, default=False 
+    copy: boolean, optional, default=False
         whether to copy data or not
     """
     features = sk_normalize(X, norm=norm, copy=copy)
@@ -250,13 +281,17 @@ def _gen_open(f, _mode='rb'):
     return open(f, _mode)
 
 
-def sigmoid(X):
+def sigmoid(X, copy=False):
     """Sparse sigmoid i.e. zeros are kept intact
     Parameters
     ----------
     X: csr_matrix
         sparse matrix in csr format
+    copy: boolean, optional, default=False
+        make a copy or not
     """
+    if copy:
+        X = X.copy()
     X.data = expit(X.data)
     return X
 
@@ -294,3 +329,34 @@ def _map(X, mapping, shape, axis=1):
         return _map_rows(X, mapping, shape)
     else:
         raise NotImplementedError("Unknown axis for sparse matrix!")
+
+
+def compute_centroid(X, Y, reduction='sum'):
+    """
+    Compute label centroids from sparse features
+    * output is sparse
+    Arguments:
+    ---------
+    X: scipy.sparse.csr_matrix
+        sparse feature of each document
+    Y: scipy.sparse.csr_matrix
+        ground truth
+    reduction: str, optional (default='sum')
+        take sum or average
+
+    Returns:
+    --------
+    centroids: scipy.sparse.csr_matrix
+        Centroid for each label
+    """
+    centroids = Y.T.dot(X).tocsr()
+    if reduction == 'sum':
+        pass
+    elif reduction == 'mean':
+        freq = Y.sum(axis=0)
+        freq[freq == 0] = 1  # avoid division by zero
+        centroids = centroids.multiply(1/freq.T)
+    else:
+        raise NotImplementedError(
+            "Reduction {} not yet implemented.".format(reduction))
+    return centroids
