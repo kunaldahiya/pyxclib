@@ -17,4 +17,4 @@ def compute_features():
     # Compute BoW features as
     obj = text.BoWFeatures()
     obj.fit(corpus)
-    print(obj.transform(obj).toarray())
+    print(obj.transform(corpus).toarray())
