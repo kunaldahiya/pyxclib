@@ -30,7 +30,7 @@ def compute_centroid(X, Y, reduction='sum', binarize=True, copy=True):
     if reduction == 'sum':
         pass
     elif reduction == 'mean':
-        freq = np.ravel(np.sum(labels, axis=0)).reshape(-1, 1)
+        freq = np.ravel(np.sum(Y, axis=0)).reshape(-1, 1)
         freq[freq == 0] = 1.0  # Avoid division by zero
         centroids = centroids/freq
     else:
