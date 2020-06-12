@@ -1,7 +1,7 @@
 import sys
 import os
 import xclib.data.data_loader as data_loader
-import parameters as parameters
+import xclib.classifier.parameters as parameters
 from xclib.classifier import ova, slice, kcentroid, knn
 import time
 from xclib.data import data_utils
