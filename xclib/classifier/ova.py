@@ -6,8 +6,7 @@ from .base import BaseClassifier
 import scipy.sparse as sp
 from ._svm import train_one
 from functools import partial
-from ..utils import sparse
-from ..utils import utils
+from ..utils import sparse, utils
 import operator
 from ..data import data_loader
 import os
@@ -83,6 +82,7 @@ class OVAClassifier(BaseClassifier):
         self.num_labels_ = None
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger('OVAClassifier')
+        self.logger.info("Parameters:: {}".format(str(self)))
 
     def _merge_weights(self, weights, biases):
         # Bias is always a dense array
@@ -170,8 +170,8 @@ class OVAClassifier(BaseClassifier):
                 self._save_state(model_dir, idx)
                 self.logger.info("Saved state at epoch: {}".format(idx))
         self._merge_weights(weights, biases)
-        self.logger.info("Training time (sec): {}, model size (GB): {}".format(
-            run_time, self._compute_clf_size()))
+        self.logger.info("Training time (sec): {}, model size (MB): {}".format(
+            run_time, self.model_size))
 
     def _train(self, data, num_threads):
         """Train SVM for multiple labels
@@ -196,8 +196,8 @@ class OVAClassifier(BaseClassifier):
         del result
         return weights, biases
 
-    def predict(self, data_dir, dataset, feat_fname, label_fname):
-        """Train the classifier
+    def predict(self, data_dir, dataset, feat_fname, label_fname, top_k=10):
+        """Predict using the classifier
         Will create batches on instance and then parallelize
         Arguments:
         ---------
@@ -227,9 +227,9 @@ class OVAClassifier(BaseClassifier):
         for idx, batch_data in enumerate(data):
             pred = batch_data['data'][batch_data['ind']
                                       ] @ self.weight + self.bias
-            utils._update_predicted(
+            misc._update_predicted(
                 start_idx, pred.view(np.ndarray) if use_sparse else pred,
-                predicted_labels)
+                predicted_labels, top_k=top_k)
             start_idx += pred.shape[0]
             self.logger.info(
                 "Batch: [{}/{}] completed!".format(idx+1, num_batches))
@@ -252,7 +252,7 @@ class OVAClassifier(BaseClassifier):
         self.bias = self.bias.transpose()
 
     def __repr__(self):
-        return "#Labels: {}, C: {}, Max_iter: {}, Threshold: {}, "\
-            "Loss: {}".format(self.num_labels,
-                              self.C, self.max_iter,
-                              self.threshold, self.loss)
+        s = "C: {C}, max_iter: {max_iter}, threshold: {threshold}" \
+            ", loss: {loss}, dual: {dual}, bias: {use_bias}, norm: {norm}" \
+            ", num_threads: {num_threads}, batch_size: {batch_size}"
+        return s.format(**self.__dict__)

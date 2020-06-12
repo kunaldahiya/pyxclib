@@ -24,11 +24,12 @@ class NearestNeighbor(object):
         #threads to cluster
     """
 
-    def __init__(self, num_neighbours, method='brute', num_threads=-1):
+    def __init__(self, num_neighbours, method='brute', num_threads=-1,
+                 space='cosine'):
         self.num_neighbours = num_neighbours
         self.index = NearestNeighbors(
             n_neighbors=num_neighbours, algorithm=method,
-            metric='cosine', n_jobs=num_threads
+            metric=space, n_jobs=num_threads
         )
 
     def fit(self, data):
@@ -68,8 +69,11 @@ class HNSW(object):
         #threads to cluster
     """
 
-    def __init__(self, M, efC, efS, num_neighbours, num_threads):
-        self.index = nmslib.init(method='hnsw', space='cosinesimil')
+    def __init__(self, M, efC, efS, num_neighbours, num_threads,
+                 space='cosine'):
+        space_map = {'cosine': 'cosinesimil'}
+        space = space_map[space]
+        self.index = nmslib.init(method='hnsw', space=space)
         self.M = M
         self.num_threads = num_threads
         self.efC = efC

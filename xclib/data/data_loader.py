@@ -150,7 +150,7 @@ class DataloaderBase(object):
 
 
 class Dataloader(DataloaderBase):
-    """Base Dataloader for 1-vs-all extreme classifiers
+    """ Dataloader for 1-vs-all extreme classifiers
     Works for sparse and dense features
     Parameters:
     -----------
@@ -215,7 +215,7 @@ class Dataloader(DataloaderBase):
 
 
 class DataloaderShortlist(DataloaderBase):
-    """Base Dataloader for 1-vs-all extreme classifiers
+    """Dataloader for extreme classifiers with extreme shortlist
     Works for sparse and dense features
     Parameters:
     -----------
@@ -273,15 +273,16 @@ class DataloaderShortlist(DataloaderBase):
         else:
             return self._create_instance_batch(batch_indices)
 
-    def update_data_shortlist(self, shortlist_indices, shortlist_dist):
+    def update_data_shortlist(self, shortlist_ind, shortlist_sim):
         # TODO Remove this loop
-        _labels = self.labels.data.tolil()  # Avoid this?
+        _labels = self.labels.data.tolil()
+        pos_labels = _labels.rows  # Avoid this?
         for idx in range(self.num_instances):
-            pos_labels = _labels[idx, :].__dict__['rows'][0]
-            neg_labels = list(
-                filter(lambda x: x not in set(pos_labels),
-                       shortlist_indices[idx]))
-            _labels[idx, neg_labels] = -1
+            indices = shortlist_ind[idx]
+            _pos = pos_labels[idx]
+            indices = indices[indices < self.num_labels]
+            _neg = indices[~np.isin(indices, _pos)]
+            _labels[idx, _neg] = -1
         self.labels.data = _labels
 
     def __iter__(self):

@@ -5,6 +5,7 @@ import numpy as np
 import _pickle as pickle
 import sys
 from operator import itemgetter
+import math
 
 
 class BaseClassifier(object):
@@ -23,8 +24,10 @@ class BaseClassifier(object):
     """
 
     def __init__(self, verbose=0, use_bias=True, feature_type='sparse'):
+        assert use_bias is True, "Not yet implemented for no bias!"
         self.verbose = verbose
         self.num_labels = None
+        self.use_bias = use_bias
         self.feature_type = feature_type
         logging.basicConfig(level=logging.INFO, stream=sys.stdout)
         self.logger = logging.getLogger('XC-Classifier')
@@ -35,20 +38,21 @@ class BaseClassifier(object):
         fname = os.path.join(model_dir, 'model_state_{}.pkl'.format(epoch))
         pickle.dump({self.__dict__}, open(fname, 'wb'))
 
-    def _compute_clf_size(self):
+    @property
+    def model_size(self):
         _size = 0
         if self.weight is not None:
             if isinstance(self.weight, np.ndarray):
-                _size += self.weight.size*4/(1024*1024*1024)
+                _size += self.weight.size*4/math.pow(2, 20)
             else:
-                _size += self.weight.nnz*4/(1024*1024*1024)
+                _size += self.weight.nnz*4/math.pow(2, 20)
         else:
             raise AssertionError("Classifier is not yet trained!")
         if self.bias is not None:
             if isinstance(self.bias, np.ndarray):
-                _size += self.bias.size*4/(1024*1024*1024)
+                _size += self.bias.size*4/math.pow(2, 20)
             else:
-                _size += self.bias.nnz*4/(1024*1024*1024)
+                _size += self.bias.nnz*4/math.pow(2, 20)
         return _size
 
     def state_dict(self):
@@ -79,4 +83,3 @@ class BaseClassifier(object):
     def evaluate(self, true_labels, predicted_labels):
         # TODO
         raise NotImplementedError("Evaluate yet to be added.")
-        pass
