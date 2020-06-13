@@ -2,6 +2,35 @@ import numpy as np
 from .sparse import normalize as _normalize
 from .sparse import binarize as _binarize
 
+def topk(values, indices=None, k=10, sorted=False):
+    """
+    Return topk values from a np.ndarray with support for optional
+    second array
+
+    Arguments:
+    ---------
+    values: np.ndarray
+        select topk values based on this array
+    indices: np.ndarray or None, optional, default=None
+        second array; return corresponding entries for this array
+        as well; useful for key, value pairs
+    k: int, optional, default=10
+        k in top-k
+    sorted: boolean, optional, default=False
+        Sort the topk values or not
+    """
+    assert values.shape[1] >= k, f"value has less than {k} values per row"
+    if indices is not None:
+        assert values.shape == indices.shape, \
+            f"Shape of values {values.shape} != indices {indices.shape}"
+    if not sorted:
+        topk_args = np.argpartition(values, -k)[:, -k:]
+    else:
+        topk_args = np.argpartition(
+            values, list(range(-k, 0)))[:, -k:][:, ::-1]
+    out = np.take_along_axis(values, topk_args, axis=-1)
+    if indices is not None:
+        out = (out, np.take_along_axis(indices, topk_args, axis=-1))
 
 def compute_centroid(X, Y, reduction='sum', binarize=True, copy=True):
     """
