@@ -60,10 +60,11 @@ def retain_topk(X, copy=True, k=5):
     X: csr_matrix
         sparse mat with only k entries in each row
     """
+    X.sort_indices()
     ranks = rank(X)
     if copy:
         X = X.copy()
-    X[ranks > k] = 0.0
+    X.data[ranks.data > k] = 0.0
     X.eliminate_zeros()
     return X
 
