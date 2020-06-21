@@ -2,9 +2,9 @@ import numpy as np
 from multiprocessing import Pool
 import time
 from .base import BaseClassifier
-from ..utils import shortlist, sparse, misc 
+from ..utils import shortlist, sparse, misc
 import logging
-from ._svm import train_one
+from ._svm import train_one, _get_liblinear_solver_type
 import scipy.sparse as sp
 import _pickle as pickle
 from functools import partial
@@ -12,6 +12,7 @@ import os
 from ..data import data_loader
 import operator
 from functools import reduce
+import time
 
 
 def sigmoid(X):
@@ -41,6 +42,8 @@ class Slice(BaseClassifier):
         loss to optimize,
         - hinge
         - squared_hinge
+    penalty: str, optional, default='l2'
+        l1 or l2 regularizer
     M: int, optional, default=100
         HNSW parameter
     efC: int, optional, default=300
@@ -76,20 +79,23 @@ class Slice(BaseClassifier):
         train these many classifiers in parallel
     norm: str, optional, default='l2'
         normalize features
+    penalty: str, optional, default='l2'
+        l1 or l2 regularizer
     beta: float, optional, default=0.2
         weight of classifier component
     """
 
     def __init__(self, solver='liblinear', loss='squared_hinge', M=100,
                  method='hnsw', efC=300, num_neighbours=300, efS=300,
-                 C=1.0, verbose=0, max_iter=20, tol=0.1, threshold=0.01,
+                 C=1.0, verbose=0, max_iter=20, tol=0.001, threshold=0.01,
                  feature_type='dense', dual=True, use_bias=True,
                  order='centroids', num_threads=12, batch_size=1000,
-                 norm='l2', beta=0.2):
+                 norm='l2', penalty='l2', beta=0.2):
         assert feature_type == 'dense', "Not yet tested on sparse features!"
         super().__init__(verbose, use_bias, feature_type)
         self.loss = loss
         self.C = C
+        self.penalty = penalty
         self.verbose = verbose
         self.max_iter = max_iter
         self.threshold = threshold
@@ -165,9 +171,11 @@ class Slice(BaseClassifier):
         save_after: int, default=1
             save checkpoints after these many steps
         """
+        run_time = 0.0
         data = self.get_data_loader(
             data_dir, dataset, feat_fname, label_fname, 'train', 'labels')
         self.logger.info("Training Approx. NN!")
+        start_time = time.time()
         self.shorty.fit(data.features.data, data.labels.data)
         shortlist_indices, shortlist_sim = self.shorty.query(
             data.features.data)
@@ -175,10 +183,11 @@ class Slice(BaseClassifier):
         self.num_labels_ = data.num_labels_  # number of original labels
         self.valid_labels = data.valid_labels
         data.update_data_shortlist(shortlist_indices, shortlist_sim)
+        run_time = time.time() - start_time
         weights, biases = [], []
-        run_time = 0.0
         start_time = time.time()
         num_batches = data.num_batches
+        self.logger.info("Training classifiers!")
         for idx, batch_data in enumerate(data):
             start_time = time.time()
             batch_weight, batch_bias = self._train(
@@ -201,18 +210,15 @@ class Slice(BaseClassifier):
 
     def _train(self, data, num_threads):
         """
-            Train SVM for multiple labels
-            Args:
-                data: list: [{'X': X, 'Y': y}]
-            Returns:
-                params_: np.ndarray: (num_labels, feature_dims+1) 
-                                    +1 for bias; bias is last term
+        Train SVM for multiple labels
+        Args:
+            data: list: [{'X': X, 'Y': y}]
+        Returns:
+            weights: np.ndarray: (num_labels, feature_dims) 
+            bias: np.ndarray: (num_labels, 1)
         """
         with Pool(num_threads) as p:
-            _func = partial(train_one, loss=self.loss,
-                            C=self.C, verbose=self.verbose,
-                            max_iter=self.max_iter, tol=self.tol,
-                            threshold=self.threshold, dual=self.dual)
+            _func = self._get_partial_train()
             result = p.map(_func, data)
         weights, biases = separate(result)
         del result
@@ -283,12 +289,25 @@ class Slice(BaseClassifier):
         self.shorty.load(fname)
         super().load(fname)
 
+    def _get_partial_train(self):
+        return partial(train_one, solver_type=self.solver, C=self.C,
+                       verbose=self.verbose, max_iter=self.max_iter,
+                       threshold=self.threshold, tol=self.tol,
+                       intercept_scaling=1.0, fit_intercept=self.use_bias,
+                       epsilon=0)
+
     def __repr__(self):
         s = "{shorty}, C: {C}, max_iter: {max_iter}, threshold: {threshold}" \
             ", loss: {loss}, dual: {dual}, bias: {use_bias}, norm: {norm}" \
-            ", num_threads: {num_threads}, batch_size: {batch_size}"
+            ", tol: {tol}, num_threads: {num_threads}" \
+            ", batch_size: {batch_size}"
         return s.format(**self.__dict__)
 
     @property
     def model_size(self):
         return self.shorty.model_size + super().model_size
+
+    @property
+    def solver(self):
+        return _get_liblinear_solver_type(
+            'ovr', self.penalty, self.loss, self.dual)

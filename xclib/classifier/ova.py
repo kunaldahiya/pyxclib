@@ -6,10 +6,11 @@ from .base import BaseClassifier
 import scipy.sparse as sp
 from ._svm import train_one
 from functools import partial
-from ..utils import sparse, utils
+from ..utils import sparse, misc
 import operator
 from ..data import data_loader
 import os
+from ._svm import train_one, _get_liblinear_solver_type
 
 
 def separate(result):
@@ -60,15 +61,18 @@ class OVAClassifier(BaseClassifier):
         train these many classifiers in parallel
     norm: str, optional, default='l2'
         normalize features
+    penalty: str, optional, default='l2'
+        l1 or l2 regularizer
     """
 
     def __init__(self, solver='liblinear', loss='squared_hinge', C=1.0,
                  verbose=0, max_iter=20, tol=0.1, threshold=0.01,
                  feature_type='sparse', dual=True, use_bias=True,
-                 num_threads=12, batch_size=1000, norm='l2'):
+                 num_threads=12, batch_size=1000, norm='l2', penalty='l2'):
         super().__init__(verbose, use_bias, feature_type)
         self.loss = loss
         self.C = C
+        self.penalty = penalty
         self.norm = norm
         self.num_threads = num_threads
         self.verbose = verbose
@@ -187,10 +191,7 @@ class OVAClassifier(BaseClassifier):
             bias of the classifier
         """
         with Pool(num_threads) as p:
-            _func = partial(train_one, loss=self.loss,
-                            C=self.C, verbose=self.verbose,
-                            max_iter=self.max_iter, tol=self.tol,
-                            threshold=self.threshold, dual=self.dual)
+            _func = self._get_partial_train()
             result = p.map(_func, data)
         weights, biases = separate(result)
         del result
@@ -239,6 +240,13 @@ class OVAClassifier(BaseClassifier):
                 (end_time-start_time)*1000/num_instances))
         return self._map_to_original(predicted_labels)
 
+    def _get_partial_train(self):
+        return partial(train_one, solver_type=self.solver, C=self.C,
+                       verbose=self.verbose, max_iter=self.max_iter,
+                       threshold=self.threshold, tol=self.tol,
+                       intercept_scaling=1.0, fit_intercept=self.use_bias,
+                       epsilon=0)
+
     def _map_to_original(self, X):
         """Some labels were removed during training as training data was
         not availale; remap to original mapping
@@ -254,5 +262,11 @@ class OVAClassifier(BaseClassifier):
     def __repr__(self):
         s = "C: {C}, max_iter: {max_iter}, threshold: {threshold}" \
             ", loss: {loss}, dual: {dual}, bias: {use_bias}, norm: {norm}" \
-            ", num_threads: {num_threads}, batch_size: {batch_size}"
+            ", num_threads: {num_threads}, batch_size: {batch_size}"\
+            ", tol: {tol}, penalty: {penalty}"
         return s.format(**self.__dict__)
+
+    @property
+    def solver(self):
+        return _get_liblinear_solver_type(
+            'ovr', self.penalty, self.loss, self.dual)

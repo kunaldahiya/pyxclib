@@ -1,10 +1,8 @@
 import numpy as np
 import os
-from ..utils import utils
 import sklearn.preprocessing
 import scipy.sparse as sparse
 import _pickle as pickle
-from . import data_utils
 from .features import FeaturesBase
 from .labels import LabelsBase
 
@@ -69,7 +67,11 @@ class DataloaderBase(object):
         Labels can also be supplied directly
         """
         # Pass dummy labels if required
-        return LabelsBase(data_dir, fname)
+        if self.batch_order == 'labels':
+            sp_format = 'csc'
+        else:
+            sp_format = 'csr'
+        return LabelsBase(data_dir, fname, sp_format=sp_format)
 
     def load_data(self, data_dir, fname_f, fname_l):
         """Load features and labels from file in libsvm format or pickle
@@ -193,7 +195,7 @@ class Dataloader(DataloaderBase):
         batch_data = []
         for idx in batch_indices:
             item = {}
-            pos_indices = self.labels.index_select(idx).indices.tolist()
+            pos_indices = self.labels.index_select(idx).indices
             batch_labels = -1*np.ones((self.num_instances,), dtype=np.float32)
             batch_labels[pos_indices] = 1
             item['ind'] = None  # SVM won't slice data
@@ -277,13 +279,21 @@ class DataloaderShortlist(DataloaderBase):
         # TODO Remove this loop
         _labels = self.labels.data.tolil()
         pos_labels = _labels.rows  # Avoid this?
+        rows = []
+        cols = []
+        data = []
         for idx in range(self.num_instances):
             indices = shortlist_ind[idx]
             _pos = pos_labels[idx]
-            indices = indices[indices < self.num_labels]
-            _neg = indices[~np.isin(indices, _pos)]
-            _labels[idx, _neg] = -1
-        self.labels.data = _labels
+            s_pos = set(_pos)
+            s_pos.update([self.num_labels])
+            _neg = list(filter(lambda x: x not in s_pos, indices))
+            num_pos, num_neg = len(_pos), len(_neg)
+            data.extend([1]*num_pos + [-1]*num_neg)
+            cols.extend(_pos + _neg)
+            rows.extend([idx]*(num_pos+num_neg))
+        self.labels.data = sparse.csc_matrix(
+            (data, (rows, cols)), shape=(self.num_instances, self.num_labels))
 
     def __iter__(self):
         for _, batch_indices in enumerate(self.batches):
