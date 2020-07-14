@@ -86,14 +86,14 @@ def _get_topk(X, pad_indx=0, k=5):
         indices = topk(X, k, pad_indx, 0, return_values=False)
     elif type(X) == np.ndarray:
         if np.issubdtype(X.dtype, np.integer):
-            warnings.warn("Assuming indices are sorted.")
+            warnings.warn("Assuming indices are sorted in desc order.")
             indices = X[:, :k]
         elif np.issubdtype(X.dtype, np.float):
             _indices = np.argpartition(X, -k)[:, -k:]
             _scores = np.take_along_axis(
                 X, _indices, axis=-1
             )
-            indices = np.argsort(_scores, axis=-1)
+            indices = np.argsort(-_scores, axis=-1)
             indices = np.take_along_axis(_indices, indices, axis=1)
     elif type(X) == dict:
         indices = X['indices']
@@ -108,7 +108,7 @@ def _get_topk(X, pad_indx=0, k=5):
             scores = np.take_along_axis(
                 X, _indices, axis=-1
             )
-            __indices = np.argsort(scores, axis=-1)
+            __indices = np.argsort(-scores, axis=-1)
             _indices = np.take_along_axis(_indices, __indices, axis=-1)
             indices = np.take_along_axis(indices, _indices, axis=-1)
     else:
