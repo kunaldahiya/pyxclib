@@ -1,12 +1,15 @@
-# xclib
-Tools for multi-label classification problems.
+# pyxclib
+
+Tools for extreme multi-label classification problems.
 
 ```bash
-git clone https://github.com/kunaldahiya/xclib.git
-cd xclib
+git clone https://github.com/kunaldahiya/pyxclib.git
+cd pyxclib
 python3 setup.py install --user
 ```
-Usage 
+
+Usage
+
 ```python
 from xclib.data import data_utils
 

@@ -9,6 +9,9 @@ import json
 
 class Statistics(object):
     """
+    Compute the data statistics for a given dataset 
+
+    attributes/fields/keys:
         n_train_samples: Number of train samples
         n_test_samples: Number of train samples
         n_features: Number of features
@@ -27,22 +30,29 @@ class Statistics(object):
         self.avg_doc_length = None
 
     def compute_avg_samples_per_label(self, labels):
-        return labels.sum(axis=0).mean()
+        return labels.sum(axis=0).mean().item()
 
     def compute_avg_labels_per_sample(self, labels):
-        return labels.sum(axis=1).mean()
+        return labels.sum(axis=1).mean().item()
 
     def compute_avg_doc_length(self, features):
-        return features.astype(np.bool).sum(axis=1).mean()
+        return features.astype(np.bool).sum(axis=1).mean().item()
 
     def compute(self, train_features, train_labels, 
                 test_features=None, test_labels=None):
         """Compute features for given data. Test data is optional.
-        Args:
-            train_features: csr_matrix: train features
-            train_labels: csr_matrix: train labels
-            test_features: csr_matrix: test features
-            test_labels: csr_matrix: test labels
+
+        Arguments
+        ----------
+
+        train_features: csr_matrix
+            train features
+        train_labels: csr_matrix
+            train labels
+        test_features: csr_matrix or None, optional, default=None
+            test features
+        test_labels: csr_matrix or None, optional, default=None
+            test labels
         """
         self.n_train_samples, self.n_features = train_features.shape
         self.n_labels = train_labels.shape[1] 
@@ -59,7 +69,13 @@ class Statistics(object):
 
     def write(self, fname):
         """
-            Write statistics to a given file in json format
+        Write statistics to a given file in json format
+        
+        Arguments
+        ---------
+
+        fname: str
+            write the data statistics in this file
         """
         with open(fname, 'w') as outfile:
             json.dump(vars(self), outfile, indent=4)
