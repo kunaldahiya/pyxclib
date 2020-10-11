@@ -259,7 +259,7 @@ def read_data(filename, header=True, dtype='float32', zero_based=True):
             _l_shape = (num_samples, num_labels)
         else:
             num_samples, num_feat, num_labels = None, None, None
-        features, labels = load_svmlight_file(f, multilabel=True)
+        features, labels = load_svmlight_file(f, multilabel=True, n_features=num_feat)
         labels = ll_to_sparse(
             labels, dtype=dtype, zero_based=zero_based, shape=_l_shape)
     return features, labels, num_samples, num_feat, num_labels
