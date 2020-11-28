@@ -55,6 +55,14 @@ def format(*args, decimal_points='%0.2f'):
             ','.join(list(map(lambda x: decimal_points % (x*100), vals))))
     return '\n'.join(out)
 
+def _broad_cast(mat, like):
+    if isinstance(like, np.ndarray):
+        return np.asarray(mat)
+    elif sp.issparse(mat):
+        return mat
+    else:
+        raise NotImplementedError(
+            "Unknown type; please pass csr_matrix, np.ndarray or dict.")
 
 def _get_topk(X, pad_indx=0, k=5):
     """
@@ -154,11 +162,10 @@ def _setup_metric(X, true_labels, inv_psp=None, k=5):
     indices = _get_topk(X, num_labels, k)
     ps_indices = None
     if inv_psp is not None:
-        ps_indices = _get_topk(
-            true_labels.dot(
-                sp.spdiags(inv_psp, diags=0,
-                           m=num_labels, n=num_labels)),
-            num_labels, k)
+        _mat = sp.spdiags(inv_psp, diags=0,
+                           m=num_labels, n=num_labels)
+        _psp_wtd = _broad_cast(_mat.dot(true_labels.T).T, true_labels)
+        ps_indices = _get_topk(_psp_wtd, num_labels, k)
         inv_psp = np.hstack([inv_psp, np.zeros((1))])
 
     true_labels = sp.hstack([true_labels,
