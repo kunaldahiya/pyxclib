@@ -1,5 +1,5 @@
 from ._sparse import _rank, read_file, read_file_safe, _topk
-from scipy.sparse import csr_matrix, isspmatrix
+from scipy.sparse import csr_matrix, isspmatrix, coo_matrix
 import numpy as np
 import warnings
 from sklearn.preprocessing import normalize as sk_normalize
@@ -297,37 +297,55 @@ def sigmoid(X, copy=False):
     return X
 
 
-def _map_rows(X, mapping, shape):
+def _map_rows(X, mapping, shape, oformat='csr'):
     """Indices should not be repeated
     Will not convert to dense
     """
-    X = X.tocsr()  # Avoid this?
-    row_idx, col_idx = X.nonzero()
-    vals = np.array(X[row_idx, col_idx]).squeeze()
-    row_indices = list(map(lambda x: mapping[x], row_idx))
+    X = X.tocoo()
+    row_idx, col_idx, vals = X.row, X.col, X.data 
+    func = np.vectorize(lambda x: mapping[x])
+    row_idx = func(row_idx)
     return csr_matrix(
-        (vals, (np.array(row_indices), np.array(col_idx))), shape=shape)
+        (vals, (row_idx, col_idx)), shape=shape).asformat(oformat)
 
 
-def _map_cols(X, mapping, shape):
+def _map_cols(X, mapping, shape, oformat='csr'):
     """Indices should not be repeated
     Will not convert to dense
     """
-    X = X.tocsr()
-    row_idx, col_idx = X.nonzero()
-    vals = np.array(X[row_idx, col_idx]).squeeze()
-    col_indices = list(map(lambda x: mapping[x], col_idx))
+    X = X.tocoo()
+    row_idx, col_idx, vals = X.row, X.col, X.data 
+    func = np.vectorize(lambda x: mapping[x])
+    col_idx = func(col_idx)
     return csr_matrix(
-        (vals, (np.array(row_idx), np.array(col_indices))), shape=shape)
+        (vals, (row_idx, col_idx)), shape=shape).asformat(oformat)
 
 
-def _map(X, mapping, shape, axis=1):
+def _map(X, mapping, shape, axis=1, oformat='csr'):
     """Map sparse matrix as per given mapping
+
+    Arguments:
+    ---------
+    X: scipy.sparse matrix
+        input matrix
+    shape: tuple
+        shape of the output matrix
+    axis: int, optional, default=1
+        1: map columns
+        0: map rows 
+    oformat: str, optional, default='csr
+        'csr' or 'csc' or 'lil' or 'coo'
+
+    Returns:
+    -------
+        a mapped sparse matrix in the given format
     """
+    if oformat not in {'csr', 'csc', 'lil', 'coo'}:
+        raise NotImplementedError("Unknown sparse format!")
     if axis == 1:
-        return _map_cols(X, mapping, shape)
+        return _map_cols(X, mapping, shape, oformat)
     elif axis == 0:
-        return _map_rows(X, mapping, shape)
+        return _map_rows(X, mapping, shape, oformat)
     else:
         raise NotImplementedError("Unknown axis for sparse matrix!")
 
@@ -336,6 +354,7 @@ def compute_centroid(X, Y, reduction='sum'):
     """
     Compute label centroids from sparse features
     * output is sparse
+
     Arguments:
     ---------
     X: scipy.sparse.csr_matrix
