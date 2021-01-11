@@ -2,6 +2,7 @@ import numpy as np
 from .sparse import normalize as _normalize
 from .sparse import binarize as _binarize
 
+
 def topk(values, indices=None, k=10, sorted=False):
     """
     Return topk values from a np.ndarray with support for optional
@@ -23,14 +24,19 @@ def topk(values, indices=None, k=10, sorted=False):
     if indices is not None:
         assert values.shape == indices.shape, \
             f"Shape of values {values.shape} != indices {indices.shape}"
+        # Don't do anything if n_cols = k or k = -1
+        if k == indices.shape[1] or k == -1:
+            return indices, values
     if not sorted:
-        topk_args = np.argpartition(values, -k)[:, -k:]
+        ind = np.argpartition(values, -k)[:, -k:]
     else:
-        topk_args = np.argpartition(
+        ind = np.argpartition(
             values, list(range(-k, 0)))[:, -k:][:, ::-1]
-    out = np.take_along_axis(values, topk_args, axis=-1)
+    val = np.take_along_axis(values, ind, axis=-1)
     if indices is not None:
-        out = (out, np.take_along_axis(indices, topk_args, axis=-1))
+        ind = np.take_along_axis(indices, ind, axis=-1)
+    return ind, val
+
 
 def compute_centroid(X, Y, reduction='sum', binarize=True, copy=True):
     """
@@ -59,7 +65,7 @@ def compute_centroid(X, Y, reduction='sum', binarize=True, copy=True):
     if reduction == 'sum':
         pass
     elif reduction == 'mean':
-        freq = np.ravel(np.sum(Y, axis=0)).reshape(-1, 1)
+        freq = Y.getnnz(axis=0).reshape(-1, 1)
         freq[freq == 0] = 1.0  # Avoid division by zero
         centroids = centroids/freq
     else:
@@ -105,7 +111,7 @@ def compute_dense_features(X, embeddings, reduction='sum', normalize=True,
     if reduction == 'sum':
         pass
     elif reduction == 'mean':
-        temp = np.array(features.sum(axis=1))
+        temp = X.getnnz(axis=1).reshape(-1, 1)
         temp[temp == 0] = 1.0  # Avoid division by zero
         document_embeddings = document_embeddings/temp
     else:

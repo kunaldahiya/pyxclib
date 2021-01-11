@@ -350,7 +350,7 @@ def _map(X, mapping, shape, axis=1, oformat='csr'):
         raise NotImplementedError("Unknown axis for sparse matrix!")
 
 
-def compute_centroid(X, Y, reduction='sum'):
+def compute_centroid(X, Y, reduction='sum', binarize=True, copy=True):
     """
     Compute label centroids from sparse features
     * output is sparse
@@ -369,13 +369,15 @@ def compute_centroid(X, Y, reduction='sum'):
     centroids: scipy.sparse.csr_matrix
         Centroid for each label
     """
+    if binarize:
+        Y = binarize(Y, copy=copy)
     centroids = Y.T.dot(X).tocsr()
     if reduction == 'sum':
         pass
     elif reduction == 'mean':
-        freq = Y.sum(axis=0)
+        freq = Y.getnnz(axis=0).reshape(-1, 1)
         freq[freq == 0] = 1  # avoid division by zero
-        centroids = centroids.multiply(1/freq.T)
+        centroids = centroids.multiply(1/freq)
     else:
         raise NotImplementedError(
             "Reduction {} not yet implemented.".format(reduction))
