@@ -25,7 +25,7 @@ setuptools.setup(
     name="xclib",
     version="0.96",
     author="X",
-    author_email="kunalsdahiya@gmail.com/anshumitts@gmail.com",
+    author_email="kunalsdahiya@gmail.com/me@anshulmittal.org",
     description="An extreme classification library for python",
     long_description_content_type="text/markdown",
     url="https://github.com/kunaldahiya/xclib",
