@@ -23,7 +23,7 @@ extensions = [
 
 setuptools.setup(
     name="xclib",
-    version="0.96",
+    version="0.97",
     author="X",
     author_email="kunalsdahiya@gmail.com/me@anshulmittal.org",
     description="An extreme classification library for python",

@@ -217,8 +217,7 @@ def normalize(X, norm='l2', copy=False):
     copy: boolean, optional, default=False
         whether to copy data or not
     """
-    features = sk_normalize(X, norm=norm, copy=copy)
-    return features
+    return sk_normalize(X, norm=norm, copy=copy)
 
 
 def _read_file_safe(f, dtype, zero_based, query_id,
@@ -350,7 +349,7 @@ def _map(X, mapping, shape, axis=1, oformat='csr'):
         raise NotImplementedError("Unknown axis for sparse matrix!")
 
 
-def compute_centroid(X, Y, reduction='sum', binarize=True, copy=True):
+def compute_centroid(X, Y, reduction='sum', _binarize=False, copy=True):
     """
     Compute label centroids from sparse features
     * output is sparse
@@ -369,7 +368,7 @@ def compute_centroid(X, Y, reduction='sum', binarize=True, copy=True):
     centroids: scipy.sparse.csr_matrix
         Centroid for each label
     """
-    if binarize:
+    if _binarize:
         Y = binarize(Y, copy=copy)
     centroids = Y.T.dot(X).tocsr()
     if reduction == 'sum':

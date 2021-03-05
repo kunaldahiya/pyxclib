@@ -1,13 +1,14 @@
-from sklearn.preprocessing import normalize as scale
 import numpy as np
 import _pickle as pickle
-from . import data_utils
+from .data_utils import read_gen_sparse
+from ..utils.sparse import normalize, binarize
 import os
 
 
 class LabelsBase(object):
     """Base class for Labels
-    Parameters
+
+    Arguments:
     ----------
     data_dir: str
         data directory
@@ -17,23 +18,22 @@ class LabelsBase(object):
         data is already provided
     """
 
-    def __init__(self, data_dir, fname, Y=None, sp_format='csc'):
-        self.sp_format = sp_format
+    def __init__(self, data_dir, fname, Y=None, _format='csr'):
+        self._format = _format
         self.Y = self.load(data_dir, fname, Y)
-        self.adjust_sparse_format()
 
-    def adjust_sparse_format(self):
+    def _adjust_format(self):
         if self._valid:
-            self.Y = self.Y.asformat(self.sp_format)
+            self.Y = self.Y.asformat(self._format)
 
     def _select_instances(self, indices):
-        return self.Y[indices] if self._valid else None
+        self.Y = self.Y[indices] if self._valid else None
 
     def _select_labels(self, indices):
-        return self.Y[:, indices] if self._valid else None
+        self.Y = self.Y[:, indices] if self._valid else None
 
     def normalize(self, norm='max', copy=False):
-        self.Y = scale(self.Y, copy=copy, norm=norm) if self._valid else None
+        self.Y = normalize(self.Y, copy=copy, norm=norm) if self._valid else None
 
     def load(self, data_dir, fname, Y):
         if Y is not None:
@@ -42,13 +42,7 @@ class LabelsBase(object):
             return None
         else:
             fname = os.path.join(data_dir, fname)
-            if fname.lower().endswith('.pkl'):
-                return pickle.load(open(fname, 'rb'))['Y']
-            elif fname.lower().endswith('.txt'):
-                return data_utils.read_sparse_file(
-                    fname, dtype=np.float32)
-            else:
-                raise NotImplementedError("Unknown file extension")
+            return read_gen_sparse(fname)
 
     def get_invalid(self, axis=0):
         return np.where(self.frequency(axis) == 0)[0] if self._valid else None
@@ -58,21 +52,22 @@ class LabelsBase(object):
 
     def remove_invalid(self, axis=0):
         indices = self.get_valid(axis)
-        self.Y = self.index_select(indices)
+        self.index_select(indices, axis=1-axis)
         return indices
 
     def binarize(self):
         if self._valid:
-            self.Y.data[:] = 1.0
+            self.Y = binarize(self.Y, copy=False)
 
-    def index_select(self, indices, axis=1):
+    def index_select(self, indices, axis=1, fname=None):
         """
             Choose only selected labels or instances
         """
+        # TODO: Load and select from file
         if axis == 0:
-            return self._select_instances(indices)
+            self._select_instances(indices)
         elif axis == 1:
-            return self._select_labels(indices)
+            self._select_labels(indices)
         else:
             NotImplementedError("Unknown Axis.")
 
@@ -99,9 +94,6 @@ class LabelsBase(object):
     def shape(self):
         return (self.num_instances, self.num_labels)
 
-    def __getitem__(self, index):
-        return self.Y[index] if self._valid else None
-
     @property
     def data(self):
         return self.Y
@@ -109,4 +101,61 @@ class LabelsBase(object):
     @data.setter
     def data(self, _Y):
         self.Y = _Y
-        self.adjust_sparse_format()
+        self._adjust_format()
+
+    def __getitem__(self, index):
+        return self.Y[index] if self._valid else None
+
+
+class DenseLabels(LabelsBase):
+    """Class for dense labels
+
+    Arguments:
+    ----------
+    data_dir: str
+        data directory
+    fname: str
+        load data from this file
+    Y: np.ndarray or None, optional, default=None
+        data is already provided
+    normalize: boolean, optional, default=False
+        Normalize the labels or not
+        Useful in case of non binary labels
+    """
+
+    def __init__(self, data_dir, fname, Y=None, normalize=False):
+        super().__init__(data_dir, fname, Y)
+        if normalize:
+            self.normalize(norm='max')
+
+    def __getitem__(self, index):
+        return super().__getitem__(
+            index).toarray().flatten().astype('float32')
+
+
+class SparseLabels(LabelsBase):
+    """Class for sparse labels
+
+    Arguments:
+    ----------
+
+    data_dir: str
+        data directory
+    fname: str
+        load data from this file
+    Y: csr_matrix or None, optional, default=None
+        data is already provided
+    normalize: boolean, optional, default=False
+        Normalize the labels or not
+        Useful in case of non binary labels
+    """
+
+    def __init__(self, data_dir, fname, Y=None, normalize=False):
+        super().__init__(data_dir, fname, Y)
+        if normalize:
+            self.normalize(norm='max')
+
+    def __getitem__(self, index):
+        y = self.Y[index].indices
+        w = self.Y[index].data
+        return y, w

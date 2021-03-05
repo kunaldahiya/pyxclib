@@ -11,6 +11,8 @@ import six
 import warnings
 import json
 import gzip
+import pickle
+from scipy.sparse import load_npz
 
 
 __author__ = 'X'
@@ -101,6 +103,94 @@ def write_sparse_file(X, filename, header=True):
             sentence = ' '.join(['{}:{}'.format(x, v)
                                  for x, v in zip(idx, val)])
             print(sentence, file=f)
+
+
+def read_gen_sparse(file, n_features=None, dtype='float32', zero_based=True,
+                     query_id=False, offset=0, length=-1, header=True,
+                     force_header=True, safe_read=True):
+    """Read sparse file. 
+    * Binary formats such as pickle, npz will ignore everything except file
+
+    Arguments
+    ----
+    file: str
+        input file in libsvm format with or without header
+        * Decide input file based on extension
+        * Support for pickle, txt, npz
+    n_features: int or None, default=None
+        number of features
+    dtype: str, default='float32'
+        data type of values
+    zero_based: str or boolean, default=True
+        zero based indices
+    query_id: bool, default=False
+        If True, will return the query_id array
+    offset: int, default=0
+        Ignore the offset first bytes by seeking forward, 
+        then discarding the following bytes up until the next new line character.
+    length: int, default=-1
+        If strictly positive, stop reading any new line of data once the position 
+        in the file has reached the (offset + length) bytes threshold.
+    header: bool, default=True
+        does file have a header
+    force_header: bool, default=True
+        force the shape of header
+    safe_read: bool, default=True 
+        check for sorted and unique indices and checks for header_shape and inferred shape
+        use False when indices are not sorted
+
+    Returns
+    ------- 
+    X: scipy.sparse.csr_matrix
+        data in sparse format
+    query_id: array of shape (n_samples,)
+        query ids
+    """
+    if file.lower().endswith('.pkl'):
+        return pickle.load(open(file, 'rb')).astype(dtype)
+    elif file.lower().endswith('.txt'):
+        return read_sparse_file(
+            file, n_features, dtype, zero_based, query_id, offset, length,
+            header, force_header, safe_read)
+    elif file.lower().endswith('.npz'):
+        return load_npz(file).astype(dtype)
+    else:
+        raise NotImplementedError("Unknown file extension")
+    
+
+def read_gen_dense(file, dtype='float32', delimiter=",", skip_header=0):
+    """Read dense file. 
+    * Binary formats such as pickle, npy will ignore everything except file
+
+    Arguments
+    ----
+    file: str
+        input file in libsvm format with or without header
+        * Decide input file based on extension
+        * Support for pickle, txt, npz
+    dtype: str, default='float32'
+        data type of values
+    delimiter: None, str, int, or sequence, default=None
+        The string used to separate values. By default, 
+        any consecutive whitespaces act as delimiter. An integer or sequence
+        of integers can also be provided as width(s) of each field.
+    skip_header: int, default=0
+        Skip these many lines at the beginning of file
+
+    Returns
+    ------- 
+    X: np.ndarray
+        data in dense format
+    """
+    if file.lower().endswith('.pkl'):
+        return pickle.load(open(file, 'rb')).astype(dtype)
+    elif file.lower().endswith('.txt'):
+        return np.genfromtxt(
+            file, dtype=dtype, delimiter=delimiter, skip_header=skip_header)
+    elif file.lower().endswith('.npy'):
+        return np.load(file).astype(dtype)
+    else:
+        raise NotImplementedError("Unknown file extension")
 
 
 def read_sparse_file(file, n_features=None, dtype='float32', zero_based=True,

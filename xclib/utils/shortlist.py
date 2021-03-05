@@ -1,6 +1,4 @@
 from .ann import NearestNeighbor, HNSW, HNSWM
-import logging
-from sklearn.preprocessing import normalize
 import _pickle as pickle
 from .clustering import Cluster
 import numpy as np
@@ -27,15 +25,6 @@ def bin_index(array, item): # Binary search
             first = mid + 1
 
     return -1
-
-
-@nb.njit(cache=True)
-def safe_normalize(array):
-    _max = np.max(array)
-    if _max != 0:
-        return array/_max
-    else:
-        return array
 
 
 @nb.njit(cache=True)
@@ -280,7 +269,6 @@ class ShortlistCentroids(Shortlist):
         label_centroids = compute_centroid(features, labels, reduction='mean')
         label_centroids = self.process_multiple_rep(
             features, labels, label_centroids)
-        norms = np.sum(np.square(label_centroids), axis=1)
         super().fit(label_centroids)
 
     def query(self, data, *args, **kwargs):
@@ -306,7 +294,7 @@ class ShortlistCentroids(Shortlist):
             'pad_ind': self.pad_ind,
             'pad_val': self.pad_val,
             'mapping': self.mapping,
-            'ext_head': self.ext_head,
+            'ext_head': self.ext_head
         }
         pickle.dump(metadata, open(fname+".metadata", 'wb'))
         super().save(fname+".index")
@@ -400,6 +388,8 @@ class ShortlistInstances(Shortlist):
         self.index.save(fname+".index")
         pickle.dump(
             {'labels': self.labels,
+             'M': self.M, 'efC': self.efC,
+             'efS': self.efS,
              'pad_ind': self.pad_ind,
              'pad_val': self.pad_val,
              'num_neighbours': self.num_neighbours,
@@ -410,6 +400,7 @@ class ShortlistInstances(Shortlist):
         obj = pickle.load(
             open(fname+".metadata", 'rb'))
         self.num_neighbours = obj['num_neighbours']
+        self.efS = obj['efS']
         self.space = obj['space']
         self.labels = obj['labels']
         self.pad_ind = obj['pad_ind']
