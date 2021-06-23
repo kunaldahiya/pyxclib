@@ -8,7 +8,11 @@ import array
 import json
 import _pickle as pickle
 import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer, VectorizerMixin
+from sklearn.feature_extraction.text import TfidfVectorizer
+try:
+    from sklearn.feature_extraction.text import _VectorizerMixin as VectorizerMixin
+except: # for sklearn < 0.23
+    from sklearn.feature_extraction.text import VectorizerMixin
 from functools import partial
 import numbers
 from sklearn.preprocessing import normalize
