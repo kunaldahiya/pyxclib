@@ -13,7 +13,7 @@ def read(fname):
     fp = data_utils.read_corpus(fname)
     for line in fp:
         # different dataset might use different fields
-        titles.append(line['title'])
+        text.append(line['title'])
         labels.append(line['target_ind'])
     return text, labels
 
@@ -41,11 +41,11 @@ def process(trn_fname, tst_fname, encoding='latin',
     del tst_text
 
     # Ensures both have same number of labels
-    max_ind = max_feature_index(trn_fname, tst_labels)
+    max_ind = max_feature_index(trn_labels, tst_labels)
     trn_labels = ll_to_sparse(
-        trn_labels, shape=(len(trn_labels), max_feature_index))
+        trn_labels, shape=(len(trn_labels), max_ind))
     tst_labels = ll_to_sparse(
-        tst_labels, shape=(len(tst_labels), max_feature_index))
+        tst_labels, shape=(len(tst_labels), max_ind))
     return trn_features, trn_labels, tst_features, tst_labels
 
 
@@ -60,7 +60,7 @@ def main():
 
     # write the data
     data_utils.write_data(trn_ofname, trn_features, trn_labels)
-    data_utils.write_data(trn_ofname, trn_features, trn_labels)
+    data_utils.write_data(tst_ofname, tst_features, tst_labels)
 
 
 if __name__ == "__main__":
