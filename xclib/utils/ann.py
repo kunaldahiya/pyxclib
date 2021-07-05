@@ -114,7 +114,7 @@ class HNSW(object):
 
 
 class HNSWM(object):
-    def __init__(self, M, efC, efS, num_neighbours, space='ip',
+    def __init__(self, M, efC, efS, num_neighbours, space='cosine',
                  num_threads=12, verbose=False):
         self.verbose = verbose
         self.index = None
@@ -136,14 +136,6 @@ class HNSWM(object):
         self.index.init_index(
             max_elements=self.max_elements, ef_construction=self.efC, M=self.M)
         self.index.add_items(data)
-
-    def _filter(self, output):
-        indices = []
-        distances = []
-        for item in output:
-            indices.append(item[0])
-            distances.append(item[1])
-        return indices, distances
 
     def predict(self, data, efS=None):
         efS = efS if efS is not None else self.efS
