@@ -190,8 +190,8 @@ class BaseExtractor(VectorizerMixin):
             vocabulary.default_factory = vocabulary.__len__
 
         analyze = self.build_analyzer()
-        df = {}
-        tf = {}
+        df = np.zeros(vocabulary.__len__ + 1) # +1 for OOV
+        tf = np.zeros(vocabulary.__len__ + 1) # +1 for OOV
         for doc in raw_documents:
             temp = analyze(doc)
             for feature in temp:
