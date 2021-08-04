@@ -44,7 +44,7 @@ class NearestNeighbor(object):
     def save(self, fname):
         with open(fname, 'wb') as fp:
             pickle.dump({'num_neighbours': self.num_neighbours,
-                         'index': self.index}, fp)
+                         'index': self.index}, fp, protocol=4)
 
     def load(self, fname):
         with open(fname, 'rb') as fp:
@@ -113,7 +113,7 @@ class HNSW(object):
         nmslib.loadIndex(self.index, fname)
 
 
-class HNSWM(object):
+class HNSWLib(object):
     def __init__(self, M, efC, efS, num_neighbours, space='cosine',
                  num_threads=12, verbose=False):
         self.verbose = verbose

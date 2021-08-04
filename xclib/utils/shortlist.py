@@ -1,10 +1,8 @@
-from .ann import NearestNeighbor, HNSW, HNSWM
-import _pickle as pickle
+from .ann import NearestNeighbor, HNSW, HNSWLib
+import pickle
 from .clustering import Cluster
 import numpy as np
-from collections import OrderedDict
 import numba as nb
-import time
 from ..utils.dense import compute_centroid
 import os
 import math
@@ -131,15 +129,19 @@ class Shortlist(object):
         construction parameter (Usually 300)
     efS: int
         search parameter (Usually 300)
-    num_threads: int, optional, default=-1
-        use multiple threads to cluster
+    num_threads: int, optional, default=24
+        use multiple threads to build index
+    space: str, optional (default='cosine')
+        search in this space 'cosine', 'ip'
     """
 
-    def __init__(self, method, num_neighbours, M, efC, efS, num_threads=24):
+    def __init__(self, method, num_neighbours, M, efC, 
+                 efS, num_threads=24, space='cosine'):
         self.method = method
         self.num_neighbours = num_neighbours
         self.M = M
         self.efC = efC
+        self.space = space
         self.efS = efS
         self.num_threads = num_threads
         self.index = None
@@ -152,8 +154,18 @@ class Shortlist(object):
                 method='brute',
                 num_threads=self.num_threads
             )
+        elif self.method == 'hnswlib':
+            self.index = HNSWLib(
+                space=self.space,
+                M=self.M,
+                efC=self.efC,
+                efS=self.efS,
+                num_neighbours=self.num_neighbours,
+                num_threads=self.num_threads
+            )
         elif self.method == 'hnsw':
             self.index = HNSW(
+                space=self.space,
                 M=self.M,
                 efC=self.efC,
                 efS=self.efS,
@@ -228,7 +240,8 @@ class ShortlistCentroids(Shortlist):
     def __init__(self, method='hnsw', num_neighbours=300, M=100, efC=300,
                  efS=300, num_threads=24, space='cosine', verbose=True,
                  num_clusters=1, threshold=7500, pad_val=-10000):
-        super().__init__(method, num_neighbours, M, efC, efS, num_threads)
+        super().__init__(
+            method, num_neighbours, M, efC, efS, num_threads, space)
         self.num_clusters = num_clusters
         self.space = space
         self.pad_ind = -1
@@ -345,7 +358,7 @@ class ShortlistInstances(Shortlist):
     def __init__(self, method='hnsw', num_neighbours=300, M=100, efC=300,
                  efS=300, num_threads=24, space='cosine', verbose=False,
                  pad_val=-10000):
-        super().__init__(method, num_neighbours, M, efC, efS, num_threads)
+        super().__init__(method, num_neighbours, M, efC, efS, num_threads, space)
         self.labels = None
         self.space = space
         self.pad_ind = None
@@ -381,6 +394,7 @@ class ShortlistInstances(Shortlist):
 
     def query(self, data, *args, **kwargs):
         indices, distances = self.index.predict(data)
+        indices = indices.astype(np.int64)
         indices, similarities = self._remap(indices, distances)
         return indices, similarities
 
@@ -393,7 +407,9 @@ class ShortlistInstances(Shortlist):
              'pad_ind': self.pad_ind,
              'pad_val': self.pad_val,
              'num_neighbours': self.num_neighbours,
-             'space': self.space}, open(fname+".metadata", 'wb'))
+             'space': self.space}, 
+             open(fname+".metadata", 'wb'),
+             protocol=4)
 
     def load(self, fname):
         self.index.load(fname+".index")

@@ -1,8 +1,18 @@
-from numba import jit, njit, prange
+from numba import njit, prange
 from .sparse import retain_topk, _map
 import scipy.sparse as sp
 import numpy as np
 import tqdm
+
+
+def normalize_graph(X):
+    col_nnz = np.sqrt(1/np.ravel(X.sum(axis=0)))
+    row_nnz = np.sqrt(1/np.ravel(X.sum(axis=1)))
+    c_diags = sp.diags(col_nnz)
+    r_diags = sp.diags(row_nnz)
+    mat = r_diags.dot(X).dot(c_diags)
+    mat.eliminate_zeros()
+    return mat
 
 
 @njit(parallel=True, nogil=True)
