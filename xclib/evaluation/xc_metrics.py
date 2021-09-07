@@ -96,7 +96,7 @@ def _get_topk(X, pad_indx=0, k=5):
         if np.issubdtype(X.dtype, np.integer):
             warnings.warn("Assuming indices are sorted in desc order.")
             indices = X[:, :k]
-        elif np.issubdtype(X.dtype, np.float):
+        elif np.issubdtype(X.dtype, np.floating):
             _indices = np.argpartition(X, -k)[:, -k:]
             _scores = np.take_along_axis(
                 X, _indices, axis=-1
