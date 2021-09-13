@@ -2,11 +2,9 @@
     Text utlities
     - Use sparse matrices which is suitable for large datasets
 """
-import os
 import re
 import array
-import json
-import _pickle as pickle
+import pickle
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 try:
@@ -16,10 +14,8 @@ except: # for sklearn < 0.23
 from functools import partial
 import numbers
 from sklearn.preprocessing import normalize
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 import scipy.sparse as sp
-from multiprocessing import Pool
-from functools import lru_cache
 
 
 __author__ = 'KD'
@@ -190,8 +186,8 @@ class BaseExtractor(VectorizerMixin):
             vocabulary.default_factory = vocabulary.__len__
 
         analyze = self.build_analyzer()
-        df = np.zeros(vocabulary.__len__ + 1) # +1 for OOV
-        tf = np.zeros(vocabulary.__len__ + 1) # +1 for OOV
+        df = {}
+        tf = {}
         for doc in raw_documents:
             temp = analyze(doc)
             for feature in temp:
@@ -329,6 +325,14 @@ class BaseExtractor(VectorizerMixin):
 
     def save(self, fname):
         self = pickle.load(fname, 'rb')
+
+
+def dict_to_list(x):
+    """Assumes keys to be positive int"""
+    _x = [0] * (max(x.keys()) +1)
+    for k, v in x.items():
+        _x[k] = v
+    return _x
 
 
 #  Source: https://github.com/scikit-learn/scikit-learn/blob/1495f6924/sklearn/feature_extraction/text.py
@@ -501,7 +505,8 @@ class BoWFeatures(BaseExtractor):
         else:
             if self.use_idf:
                 _, df, _ = self._create_vocab(raw_documents, self.vocabulary)
-                self.idf = self._compute_idf(df, len(raw_documents))
+                self.idf = self._compute_idf(
+                    dict_to_list(df), len(raw_documents))
             self.vocabulary_ = self.vocabulary
 
     def transform(self, raw_documents, num_threads=1):
@@ -574,7 +579,7 @@ class BoWFeatures(BaseExtractor):
         return X
 
     def _compute_idf(self, df, num_samples):
-        df = np.array(df, dtype=self.dtype)
+        df = np.array(df, dtype=np.int32)
         num_features = len(df)
         df += int(self.smooth_idf)
         num_samples += int(self.smooth_idf)
