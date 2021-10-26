@@ -394,6 +394,41 @@ def _recall(eval_flags, deno, k=5):
     return np.ravel(recall)
 
 
+def _auc(X, k):
+    non_inv = np.cumsum(X, axis=1)
+    cum_noninv = np.sum(np.multiply(non_inv, 1-X), axis=1)
+    n_pos = non_inv[:, -1]
+    all_pairs = np.multiply(n_pos, k-n_pos)
+    all_pairs[all_pairs==0] = 1.0 #for safe divide
+    point_auc = np.divide(cum_noninv, all_pairs)
+    return np.mean(point_auc)
+
+
+def auc(X, true_labels, k):
+    """
+    Compute AUC score
+
+    Arguments:
+    ----------
+    X: csr_matrix, np.ndarray or dict
+        csr_matrix: csr_matrix with nnz at relevant places
+        np.ndarray: array with indices (dtype=int) or values (dtype=float)
+        dict: 'indices' -> np.ndarray of indices and
+              'scores' -> np.ndarray of scores
+    true_labels: csr_matrix or np.ndarray
+        ground truth in sparse or dense format
+    k: int, optional (default=5)
+        retain top-k predictions only
+
+    Returns:
+    -------
+    np.ndarray: auc score
+    """
+    indices, true_labels, _, _ = _setup_metric(X, true_labels, k=k)
+    eval_flags = _eval_flags(indices, true_labels, None)
+    return _auc(eval_flags, k)
+
+
 class Metrics(object):
     def __init__(self, true_labels, inv_psp=None, remove_invalid=False):
         """
