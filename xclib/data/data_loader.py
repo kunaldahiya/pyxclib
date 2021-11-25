@@ -1,9 +1,8 @@
 import numpy as np
 import os
-import sklearn.preprocessing
 import scipy.sparse as sparse
-import _pickle as pickle
-from .features import FeaturesBase
+import pickle
+from .features import SparseFeatures, DenseFeatures
 from .labels import LabelsBase
 
 
@@ -60,7 +59,12 @@ class DataloaderBase(object):
     def load_features(self, data_dir, fname):
         """Load features from given file
         """
-        return FeaturesBase(data_dir, fname)
+        if self.feature_type == 'sparse':
+            return SparseFeatures(data_dir, fname)
+        elif self.feature_type == 'dense':
+            return DenseFeatures(data_dir, fname)
+        else:
+            raise NotImplementedError("Unknown feature type!")
 
     def load_labels(self, data_dir, fname):
         """Load labels from given file
@@ -68,16 +72,16 @@ class DataloaderBase(object):
         """
         # Pass dummy labels if required
         if self.batch_order == 'labels':
-            sp_format = 'csc'
+            _format = 'csc'
         else:
-            sp_format = 'csr'
-        return LabelsBase(data_dir, fname, sp_format=sp_format)
+            _format = 'csr'
+        return LabelsBase(data_dir, fname, _format=_format)
 
     def load_data(self, data_dir, fname_f, fname_l):
         """Load features and labels from file in libsvm format or pickle
         """
-        features = self.load_features(data_dir, fname_f)
         labels = self.load_labels(data_dir, fname_l)
+        features = self.load_features(data_dir, fname_f)
         if self.norm is not None:
             features.normalize(norm=self.norm)
         return features, labels

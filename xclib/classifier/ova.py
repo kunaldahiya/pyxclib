@@ -6,11 +6,10 @@ from .base import BaseClassifier
 import scipy.sparse as sp
 from ._svm import train_one
 from functools import partial
-from ..utils import sparse, misc
-import operator
+from ..utils import sparse
 from ..data import data_loader
-import os
 from ._svm import train_one, _get_liblinear_solver_type
+from ..utils.matrix import SMatrix
 
 
 def separate(result):
@@ -220,17 +219,20 @@ class OVAClassifier(BaseClassifier):
         data = self.get_data_loader(
             data_dir, dataset, feat_fname, label_fname, 'predict', 'instances')
         num_instances = data.num_instances
-        predicted_labels = sp.lil_matrix(
-            (num_instances, self.num_labels), dtype=np.float32)
+        predicted_labels = SMatrix(
+            n_rows=num_instances,
+            n_cols=self.num_labels,
+            nnz=top_k)        
         start_time = time.time()
         start_idx = 0
         num_batches = data.num_batches
         for idx, batch_data in enumerate(data):
             pred = batch_data['data'][batch_data['ind']
                                       ] @ self.weight + self.bias
-            misc._update_predicted(
-                start_idx, pred.view(np.ndarray) if use_sparse else pred,
-                predicted_labels, top_k=top_k)
+            predicted_labels.update_block(
+                start_idx, 
+                ind=None,
+                val=pred.view(np.ndarray) if use_sparse else pred)
             start_idx += pred.shape[0]
             self.logger.info(
                 "Batch: [{}/{}] completed!".format(idx+1, num_batches))
@@ -238,7 +240,7 @@ class OVAClassifier(BaseClassifier):
         self.logger.info(
             "Prediction time/sample (ms): {}".format(
                 (end_time-start_time)*1000/num_instances))
-        return self._map_to_original(predicted_labels)
+        return self._map_to_original(predicted_labels.data())
 
     def _get_partial_train(self):
         return partial(train_one, solver_type=self.solver, C=self.C,

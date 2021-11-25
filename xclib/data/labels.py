@@ -1,5 +1,4 @@
 import numpy as np
-import _pickle as pickle
 from .data_utils import read_gen_sparse
 from ..utils.sparse import normalize, binarize
 import os
@@ -21,16 +20,17 @@ class LabelsBase(object):
     def __init__(self, data_dir, fname, Y=None, _format='csr'):
         self._format = _format
         self.Y = self.load(data_dir, fname, Y)
+        self._adjust_format()
 
     def _adjust_format(self):
         if self._valid:
             self.Y = self.Y.asformat(self._format)
 
     def _select_instances(self, indices):
-        self.Y = self.Y[indices] if self._valid else None
+        return self.Y[indices] if self._valid else None
 
     def _select_labels(self, indices):
-        self.Y = self.Y[:, indices] if self._valid else None
+        return self.Y[:, indices] if self._valid else None
 
     def normalize(self, norm='max', copy=False):
         self.Y = normalize(self.Y, copy=copy, norm=norm) if self._valid else None
@@ -52,7 +52,7 @@ class LabelsBase(object):
 
     def remove_invalid(self, axis=0):
         indices = self.get_valid(axis)
-        self.index_select(indices, axis=1-axis)
+        self.Y = self.index_select(indices, axis=1-axis)
         return indices
 
     def binarize(self):
@@ -65,9 +65,9 @@ class LabelsBase(object):
         """
         # TODO: Load and select from file
         if axis == 0:
-            self._select_instances(indices)
+            return self._select_instances(indices)
         elif axis == 1:
-            self._select_labels(indices)
+            return self._select_labels(indices)
         else:
             NotImplementedError("Unknown Axis.")
 

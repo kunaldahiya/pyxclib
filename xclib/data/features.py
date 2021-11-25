@@ -1,6 +1,5 @@
 from sklearn.preprocessing import normalize as scale
 import numpy as np
-import _pickle as pickle
 import os
 from . import data_utils
 
@@ -31,11 +30,11 @@ class FeaturesBase(object):
 
     def remove_invalid(self, axis=0):
         indices = self.get_valid(axis)
-        self.index_select(indices)
+        self.X = self.index_select(indices, axis=1-axis)
         return indices
 
     def _select_instances(self, indices):
-        self.X = self.X[indices]
+        return self.X[indices]
 
     def _select_features(self, indices):
         # Not valid in general case
@@ -47,9 +46,9 @@ class FeaturesBase(object):
         """
         # TODO: Load and select from file
         if axis == 0:
-            self._select_instances(indices)
+            return self._select_instances(indices)
         elif axis == 1:
-            self._select_features(indices)
+            return self._select_features(indices)
         else:
             raise NotImplementedError("Unknown Axis.")
 
@@ -60,6 +59,7 @@ class FeaturesBase(object):
             raise NotImplementedError("Loading module not implemented")
 
     def normalize(self, norm='l2', copy=False):
+        # Not valid in general case
         pass
 
     @property
@@ -103,7 +103,7 @@ class DenseFeatures(FeaturesBase):
             self.normalize()
 
     def _select_features(self, indices):
-        self.X = self.X[:, indices]
+        return self.X[:, indices]
 
     def normalize(self, norm='l2', copy=False):
         self.X = scale(self.X, copy=copy, norm=norm)
@@ -152,7 +152,7 @@ class SparseFeatures(FeaturesBase):
         self.X = scale(self.X, copy=copy, norm=norm)
 
     def _select_features(self, indices):
-        self.X = self.X[:, indices]
+        return self.X[:, indices]
 
     def frequency(self, axis=0):
         return np.array(self.X.astype(np.bool).sum(axis=axis)).ravel()

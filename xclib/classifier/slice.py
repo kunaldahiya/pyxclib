@@ -2,16 +2,13 @@ import numpy as np
 from multiprocessing import Pool
 import time
 from .base import BaseClassifier
-from ..utils import shortlist, sparse, misc
+from ..utils import shortlist, sparse
 import logging
 from ._svm import train_one, _get_liblinear_solver_type
 import scipy.sparse as sp
-import _pickle as pickle
 from functools import partial
-import os
 from ..data import data_loader
-import operator
-from functools import reduce
+from ..utils.matrix import SMatrix
 import time
 
 
@@ -229,6 +226,7 @@ class Slice(BaseClassifier):
         if beta is not None:
             self.beta = beta
         # TODO Works for batch only; need to loop over all instances otherwise
+        # Append padding index
         self.weight = np.vstack(
             [self.weight, np.zeros((1, self.weight.shape[1]), dtype='float32')])
         self.bias = np.vstack(
@@ -237,8 +235,10 @@ class Slice(BaseClassifier):
             data_dir, dataset, feat_fname, label_fname, 'predict', 'instances')
         num_instances = data.num_instances
         num_features = data.num_features
-        predicted = sp.lil_matrix(
-            (num_instances, self.num_labels+1), dtype=np.float32)
+        predicted = SMatrix(
+            n_rows=num_instances,
+            n_cols=self.num_labels,
+            nnz=top_k)        
         start_time = time.time()
         start_idx = 0
         for _, batch_data in enumerate(data):
@@ -259,15 +259,17 @@ class Slice(BaseClassifier):
             score_clf = sigmoid(score_clf)
             score_knn = sigmoid(shortlist_sim)
             score = self.beta*score_clf + (1-self.beta)*score_knn
-            misc._update_predicted_shortlist(
-                start_idx, score, predicted, shortlist_indices, top_k=top_k)
+            predicted.update_block(
+                start_idx, 
+                ind=shortlist_indices,
+                val=score)
             start_idx += batch_size
             del x_, w_, b_
         end_time = time.time()
         self.logger.info(
             "Prediction time/sample (ms): {}".format(
                 (end_time-start_time)*1000/num_instances))
-        return self._map_to_original(predicted[:, :-1])
+        return self._map_to_original(predicted.data()[:, :-1])
 
     def _map_to_original(self, X):
         """Some labels were removed during training as training data was
