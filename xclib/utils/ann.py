@@ -35,11 +35,19 @@ class NearestNeighbor(object):
     def fit(self, data):
         self.index.fit(data)
 
-    def predict(self, data):
+    def _predict(self, data):
         distances, indices = self.index.kneighbors(
             X=data, n_neighbors=self.num_neighbours, return_distance=True
         )
         return indices, distances
+
+    def _set_query_time_params(self, num_neighbours=None):
+        if num_neighbours is not None:
+            self.num_neighbours = num_neighbours
+
+    def predict(self, data, num_neighbours=None):
+        self._set_query_time_params(num_neighbours)
+        return self._predict(data)
 
     def save(self, fname):
         with open(fname, 'wb') as fp:
@@ -97,13 +105,21 @@ class HNSW(object):
             distances[idx] = item[1]
         return indices, distances
 
-    def predict(self, data, efS=None):
-        efS = efS if efS is not None else self.efS
-        self.index.setQueryTimeParams({'efSearch': self.efS})
+    def _predict(self, data):
         output = self.index.knnQueryBatch(
-            data, k=self.efS, num_threads=self.num_threads
-            )
+            data, k=self.num_neighbours, num_threads=self.num_threads)
         indices, distances = self._filter(output)
+        return indices, distances
+
+    def _set_query_time_params(self, efS=None, num_neighbours=None):
+        self.efS = efS if efS is not None else self.efS
+        if num_neighbours is not None:
+            self.num_neighbours = num_neighbours
+        self.index.setQueryTimeParams({'efSearch': self.efS})
+
+    def predict(self, data, efS=None, num_neighbours=None):
+        self._set_query_time_params(efS, num_neighbours)
+        indices, distances = self._predict(data)
         return indices, distances
 
     def save(self, fname):
@@ -137,10 +153,18 @@ class HNSWLib(object):
             max_elements=self.max_elements, ef_construction=self.efC, M=self.M)
         self.index.add_items(data)
 
-    def predict(self, data, efS=None):
-        efS = efS if efS is not None else self.efS
-        self.index.set_ef(efS)
-        indices, distances = self.index.knn_query(data, k=efS)
+    def _set_query_time_params(self, efS=None, num_neighbours=None):
+        self.efS = efS if efS is not None else self.efS
+        if num_neighbours is not None:
+            self.num_neighbours = num_neighbours
+        self.index.set_ef(self.efS)
+
+    def _predict(self, data):
+        return self.index.knn_query(data, k=self.num_neighbours)
+
+    def predict(self, data, efS=None, num_neighbours=None):
+        self._set_query_time_params(efS, num_neighbours)
+        indices, distances = self._predict(data)
         return indices, distances
 
     def save(self, fname):   
