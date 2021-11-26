@@ -1,5 +1,4 @@
 import numpy as np
-from multiprocessing import Pool
 import time
 import logging
 from .base import BaseClassifier
@@ -9,7 +8,9 @@ from functools import partial
 from ..utils import sparse
 from ..data import data_loader
 from ._svm import train_one, _get_liblinear_solver_type
+from joblib import Parallel, delayed
 from ..utils.matrix import SMatrix
+from tqdm import tqdm
 
 
 def separate(result):
@@ -151,9 +152,9 @@ class OVAClassifier(BaseClassifier):
         self.valid_labels = data.valid_labels
         weights, biases = [], []
         run_time = 0.0
-        num_batches = data.num_batches
         start_time = time.time()
-        for idx, batch_data in enumerate(data):
+        idx = 0
+        for batch_data in tqdm(data):
             start_time = time.time()
             batch_weight, batch_bias = self._train(
                 batch_data, self.num_threads)
@@ -164,14 +165,12 @@ class OVAClassifier(BaseClassifier):
             batch_time = time.time() - start_time
             run_time += batch_time
             weights.append(batch_weight), biases.extend(batch_bias)
-            self.logger.info(
-                "Batch: [{}/{}] completed!, time taken: {}".format(
-                    idx+1, num_batches, batch_time))
             if idx != 0 and idx % save_after == 0:
                 #  TODO: Delete these to save memory?
                 self._merge_weights(weights, biases)
                 self._save_state(model_dir, idx)
                 self.logger.info("Saved state at epoch: {}".format(idx))
+            idx += 1
         self._merge_weights(weights, biases)
         self.logger.info("Training time (sec): {}, model size (MB): {}".format(
             run_time, self.model_size))
@@ -189,9 +188,9 @@ class OVAClassifier(BaseClassifier):
         bias: float
             bias of the classifier
         """
-        with Pool(num_threads) as p:
-            _func = self._get_partial_train()
-            result = p.map(_func, data)
+        _func = self._get_partial_train()
+        with Parallel(n_jobs=num_threads) as parallel:
+            result = parallel(delayed(_func)(d) for d in data)
         weights, biases = separate(result)
         del result
         return weights, biases
@@ -225,8 +224,7 @@ class OVAClassifier(BaseClassifier):
             nnz=top_k)        
         start_time = time.time()
         start_idx = 0
-        num_batches = data.num_batches
-        for idx, batch_data in enumerate(data):
+        for batch_data in tqdm(data):
             pred = batch_data['data'][batch_data['ind']
                                       ] @ self.weight + self.bias
             predicted_labels.update_block(
@@ -234,8 +232,6 @@ class OVAClassifier(BaseClassifier):
                 ind=None,
                 val=pred.view(np.ndarray) if use_sparse else pred)
             start_idx += pred.shape[0]
-            self.logger.info(
-                "Batch: [{}/{}] completed!".format(idx+1, num_batches))
         end_time = time.time()
         self.logger.info(
             "Prediction time/sample (ms): {}".format(

@@ -1,5 +1,5 @@
 import numpy as np
-from multiprocessing import Pool
+from joblib import Parallel, delayed
 import time
 from .base import BaseClassifier
 from ..utils import shortlist, sparse
@@ -10,6 +10,7 @@ from functools import partial
 from ..data import data_loader
 from ..utils.matrix import SMatrix
 import time
+from tqdm import tqdm
 
 
 def sigmoid(X):
@@ -83,7 +84,7 @@ class Slice(BaseClassifier):
     """
 
     def __init__(self, solver='liblinear', loss='squared_hinge', M=100,
-                 method='hnsw', efC=300, num_neighbours=300, efS=300,
+                 method='hnswlib', efC=300, num_neighbours=300, efS=300,
                  C=1.0, verbose=0, max_iter=20, tol=0.001, threshold=0.01,
                  feature_type='dense', dual=True, use_bias=True,
                  order='centroids', num_threads=12, batch_size=1000,
@@ -183,9 +184,9 @@ class Slice(BaseClassifier):
         run_time = time.time() - start_time
         weights, biases = [], []
         start_time = time.time()
-        num_batches = data.num_batches
         self.logger.info("Training classifiers!")
-        for idx, batch_data in enumerate(data):
+        idx = 0
+        for batch_data in tqdm(data):
             start_time = time.time()
             batch_weight, batch_bias = self._train(
                 batch_data, self.num_threads)
@@ -193,14 +194,12 @@ class Slice(BaseClassifier):
             batch_time = time.time() - start_time
             run_time += batch_time
             weights.append(batch_weight), biases.extend(batch_bias)
-            self.logger.info(
-                "Batch: [{}/{}] completed!, time taken: {}".format(
-                    idx+1, num_batches, batch_time))
             if idx != 0 and idx % save_after == 0:
                 # TODO: Delete these to save RAM?
                 self._merge_weights(weights, biases)
                 self._save_state(model_dir, idx)
                 self.logger.info("Saved state at epoch: {}".format(idx))
+            idx += 1
         self._merge_weights(weights, biases)
         self.logger.info("Training time (sec): {}, model size (MB): {}".format(
             run_time, self.model_size))
@@ -214,9 +213,9 @@ class Slice(BaseClassifier):
             weights: np.ndarray: (num_labels, feature_dims) 
             bias: np.ndarray: (num_labels, 1)
         """
-        with Pool(num_threads) as p:
-            _func = self._get_partial_train()
-            result = p.map(_func, data)
+        _func = self._get_partial_train()
+        with Parallel(n_jobs=num_threads) as parallel:
+            result = parallel(delayed(_func)(d) for d in data)
         weights, biases = separate(result)
         del result
         return weights, biases
@@ -241,11 +240,17 @@ class Slice(BaseClassifier):
             nnz=top_k)        
         start_time = time.time()
         start_idx = 0
-        for _, batch_data in enumerate(data):
+        # This is required so that it doesn't set/print
+        # info regarding query params repeatedly
+        self.shorty.index._set_query_time_params()
+        for batch_data in tqdm(data):
             batch_size = len(batch_data['ind'])
             temp_data = batch_data['data'][batch_data['ind']]
-            shortlist_indices, shortlist_sim = self.shorty.query(
+
+            # Need to do this; otheriwse it prints stuff from set query
+            shortlist_indices, shortlist_dist = self.shorty.index._predict(
                 temp_data)
+            shortlist_sim = 1 - shortlist_dist 
             # Shortlist may contain pad labels
             shortlist_indices_fl = []
             for item in shortlist_indices:

@@ -3,12 +3,10 @@
 from sklearn.cluster import KMeans
 import pickle
 import numpy as np
-from functools import partial
-import operator
-import functools
-from multiprocessing import Pool
 from .sparse import normalize
 import math
+from joblib import Parallel, delayed
+import itertools
 
 
 class Cluster(object):
@@ -90,7 +88,7 @@ class Cluster(object):
             self.num_sets = temp['num_sets']
 
 
-def b_kmeans_dense(X, index, metric='cosine', tol=1e-4, leakage=None):
+def b_kmeans_dense(X, index, metric='cosine', tol=1e-4):
     X = normalize(X)
     n = X.shape[0]
     if X.shape[0] == 1:
@@ -172,10 +170,9 @@ def _sdist(XA, XB, metric, norm=None):
 
 
 def cluster_balance(X, clusters, num_clusters, splitter,
-                    num_threads=5, verbose=True):
+                    num_threads=5, verbose=True, use_sth_till=-1):
     """
     Cluster given data using 2-Means++ algorithm
-
     Arguments:
     ----------
     X: np.ndarray or csr_matrix
@@ -192,7 +189,6 @@ def cluster_balance(X, clusters, num_clusters, splitter,
     num_threads: int, optional (default=5)
         number of threads to use
         * it'll use a single thread to initial partitions to avoid memory error
-
     Returns:
     --------
     clusters: a list of list
@@ -205,32 +201,25 @@ def cluster_balance(X, clusters, num_clusters, splitter,
         return 2**int(math.ceil(math.log(x) / math.log(2)))
 
     def _print_stats(x):
-        print(f"Total clusters {len(temp_cluster_list)}" \
-            f" Avg. Cluster size {np.mean(list(map(len, temp_cluster_list)))}")
+        print(f"Total clusters {len(x)}" \
+            f" Avg. Cluster size {np.mean(list(map(len, x)))}")
 
     num_clusters = _nearest_two_power(num_clusters)
-    min_splits = min(8, num_clusters)
-    while len(clusters) < min_splits:
-        temp_cluster_list = functools.reduce(
-            operator.iconcat,
-            map(lambda x: splitter(X[x], x),
-                clusters), [])
+
+    while len(clusters) < use_sth_till:
+        temp_cluster_list = [splitter(X[x], x) for x in clusters]
+        clusters = list(itertools.chain(*temp_cluster_list))
         if verbose:
-            _print_stats(temp_cluster_list)
-        clusters = temp_cluster_list
+            _print_stats(clusters)
         del temp_cluster_list
-    with Pool(num_threads) as p:
+
+    with Parallel(n_jobs=num_threads, prefer="threads") as parallel:
         while len(clusters) < num_clusters:
-            temp_cluster_list = functools.reduce(
-                operator.iconcat,
-                p.starmap(
-                    splitter,
-                    map(lambda cluster: (X[cluster], cluster),
-                        clusters)
-                ), [])
+            temp_cluster_list = parallel(
+                delayed(splitter)(X[x], x) for x in clusters)
+            clusters = list(itertools.chain(*temp_cluster_list))
             if verbose:
-                _print_stats(temp_cluster_list)
-            clusters = temp_cluster_list
+                _print_stats(clusters)
             del temp_cluster_list
     mapping = np.zeros(X.shape[0], dtype=np.int64)
     for idx, item in enumerate(clusters):

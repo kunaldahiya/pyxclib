@@ -150,6 +150,9 @@ class DataloaderBase(object):
         self.num_labels_ = state['num_labels_']
         self.valid_labels = state['valid_labels']
 
+    def __len__(self):
+        return self.num_batches
+
     @property
     def num_batches(self):
         return len(self.batches)  # Number of batches
