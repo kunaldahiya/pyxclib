@@ -23,13 +23,22 @@ class LabelsBase(object):
         self._adjust_format()
 
     def _adjust_format(self):
+        """
+        Modify format of sparse matrix (eg. csr/csc etc.)
+        """
         if self._valid:
             self.Y = self.Y.asformat(self._format)
 
-    def _select_instances(self, indices):
+    def instance_select(self, indices):
+        """
+        Return instances (rows) as per given indices
+        """
         return self.Y[indices] if self._valid else None
 
-    def _select_labels(self, indices):
+    def label_select(self, indices):
+        """
+        Return labels (columns) as per given indices
+        """
         return self.Y[:, indices] if self._valid else None
 
     def normalize(self, norm='max', copy=False):
@@ -44,14 +53,30 @@ class LabelsBase(object):
             fname = os.path.join(data_dir, fname)
             return read_gen_sparse(fname)
 
-    def get_invalid(self, axis=0):
+    def get_invalid_indices(self, axis=0):
+        """
+        Get indices of invalid rows/columns (no data available)
+        """
         return np.where(self.frequency(axis) == 0)[0] if self._valid else None
 
-    def get_valid(self, axis=0):
+    def get_valid_indices(self, axis=0):
+        """
+        Get indices of only valid rows/columns (data available)
+        """
         return np.where(self.frequency(axis) > 0)[0] if self._valid else None
 
+    def _index_select(self, indices, axis=0):
+        """
+            Keep only given labels or instances (will modify data)
+        """
+        self.Y = self.index_select(indices, axis=axis)
+
     def remove_invalid(self, axis=0):
-        indices = self.get_valid(axis)
+        """
+        Get indices of invalid row (axis=0) or column (axis=1)
+        Remove them in-place and return indices
+        """
+        indices = self.get_valid_indices(axis)
         self.Y = self.index_select(indices, axis=1-axis)
         return indices
 
@@ -59,15 +84,14 @@ class LabelsBase(object):
         if self._valid:
             self.Y = binarize(self.Y, copy=False)
 
-    def index_select(self, indices, axis=1, fname=None):
+    def index_select(self, indices, axis=1):
         """
-            Choose only selected labels or instances
+            Return data as per given indices and axis
         """
-        # TODO: Load and select from file
         if axis == 0:
-            return self._select_instances(indices)
+            return self.instance_select(indices)
         elif axis == 1:
-            return self._select_labels(indices)
+            return self.label_select(indices)
         else:
             NotImplementedError("Unknown Axis.")
 
@@ -108,7 +132,7 @@ class LabelsBase(object):
 
 
 class DenseLabels(LabelsBase):
-    """Class for dense labels
+    """Class for dense labels (dense array is expected in __getitem__)
 
     Arguments:
     ----------
@@ -134,7 +158,7 @@ class DenseLabels(LabelsBase):
 
 
 class SparseLabels(LabelsBase):
-    """Class for sparse labels
+    """Class for sparse labels (indices and weights are returned)
 
     Arguments:
     ----------

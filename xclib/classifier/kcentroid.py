@@ -1,10 +1,6 @@
-import numpy as np
-from ..utils import shortlist, sparse
+from ..utils import ann, sparse
 from .base import BaseClassifier
-import operator
-import _pickle as pickle
 import time
-import scipy.sparse as sp
 import logging
 from ..data import data_loader
 
@@ -53,11 +49,11 @@ class KCentroidClassifier(BaseClassifier):
         self.num_labels = None
         self.num_labels_ = None
         self.valid_labels = None
-        self.shorty = shortlist.construct_shortlist(
+        self.shorty = ann.ShortlistCentroids(
             method=method, num_neighbours=num_neighbours,
-            M=M, efC=efC, efS=efS, order='centroids',
-            num_threads=num_threads, num_clusters=num_clusters,
-            threshold_freq=threshold_freq,
+            M=M, efC=efC, efS=efS, num_threads=num_threads,
+            num_clusters=num_clusters,
+            threshold=threshold_freq,
             space=space)
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger('KCentroid')

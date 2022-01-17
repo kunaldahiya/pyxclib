@@ -194,12 +194,17 @@ class Shortlist(object):
         self._construct()
 
     @property
-    def model_size(self):
+    def model_size(self, fname=None):
         # size on disk; see if there is a better solution
-        import tempfile
-        with tempfile.NamedTemporaryFile() as tmp:
-            self.index.save(tmp.name)
-            _size = os.path.getsize(tmp.name)/math.pow(2, 20)
+        if fname is None:
+            import tempfile
+            with tempfile.NamedTemporaryFile() as tmp:
+                self.index.save(tmp.name)
+                _size = os.path.getsize(tmp.name)/math.pow(2, 20)
+        else: #useful when can't create file in tmp
+            self.index.save(fname)
+            _size = os.path.getsize(fname)/math.pow(2, 20)
+            os.remove(fname)
         return _size
 
     def __repr__(self):
@@ -358,8 +363,9 @@ class ShortlistInstances(Shortlist):
     def __init__(self, method='hnsw', num_neighbours=300, M=100, efC=300,
                  efS=300, num_threads=24, space='cosine', verbose=False,
                  pad_val=-10000):
-        super().__init__(method, num_neighbours, M, efC, efS, num_threads, space)
+        super().__init__(method, efS, M, efC, efS, num_threads, space)
         self.labels = None
+        self._num_neighbours = num_neighbours
         self.space = space
         self.pad_ind = None
         self.pad_val = pad_val
@@ -383,7 +389,7 @@ class ShortlistInstances(Shortlist):
     def _remap(self, indices, distances):
         return map_neighbors(
             indices, 1-distances,
-            self.labels, self.num_neighbours,
+            self.labels, self._num_neighbours,
             self.pad_ind, self.pad_val)
 
     def fit(self, features, labels):
@@ -406,7 +412,7 @@ class ShortlistInstances(Shortlist):
              'efS': self.efS,
              'pad_ind': self.pad_ind,
              'pad_val': self.pad_val,
-             'num_neighbours': self.num_neighbours,
+             'num_neighbours': self._num_neighbours,
              'space': self.space}, 
              open(fname+".metadata", 'wb'),
              protocol=4)
@@ -415,7 +421,7 @@ class ShortlistInstances(Shortlist):
         self.index.load(fname+".index")
         obj = pickle.load(
             open(fname+".metadata", 'rb'))
-        self.num_neighbours = obj['num_neighbours']
+        self._num_neighbours = obj['num_neighbours']
         self.efS = obj['efS']
         self.space = obj['space']
         self.labels = obj['labels']
@@ -430,7 +436,7 @@ class ShortlistInstances(Shortlist):
             os.remove(fname+".metadata")
 
     def __repr__(self):
-        s = "efC: {efC}, efS: {efS}, M: {M}, num_nbrs: {num_neighbours}" \
+        s = "efC: {efC}, efS: {efS}, M: {M}, num_nbrs: {_num_neighbours}" \
             ", pad_ind: {pad_ind}, num_threads: {num_threads}" \
             ", pad_val: {pad_val}"
         return s.format(**self.__dict__)

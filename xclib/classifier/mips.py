@@ -2,8 +2,7 @@ import numpy as np
 from ..utils import shortlist_utils, utils
 from .base import BaseClassifier
 import numpy as np
-import operator
-import _pickle as pickle
+import pickle
 import time
 import scipy.sparse as sparse
 import logging
@@ -14,15 +13,16 @@ class MIPS(BaseClassifier):
         MIPS over existing classifiers/label embeddings
     """
 
-    def __init__(self, method, num_neighbours, M=100, efC=300, efS=300, space='ip', num_threads=12, num_clusters=1,
-                 threshold_freq=10000, verbose=False, use_sparse=False):
-        super().__init__(verbose, False, use_sparse)
+    def __init__(self, method, num_neighbours, M=100, efC=300,
+                 efS=300, space='ip', num_threads=12, num_clusters=1,
+                 verbose=False):
+        super().__init__(verbose, False, use_sparse=False)
         self.num_neighbours = num_neighbours
         self.shorty = shortlist_utils.construct_shortlist(
             method=method, num_neighbours=num_neighbours,
             M=M, efC=efC, efS=efS, order='centroids', space=space,
             num_threads=num_threads, num_clusters=num_clusters,
-            threshold_freq=threshold_freq)
+            threshold_freq=None)
         logging.basicConfig(level=logging.INFO)
         self.label_embeddings = None
         self.logger = logging.getLogger('MIPS')

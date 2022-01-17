@@ -1,11 +1,7 @@
-import numpy as np
 from ..utils import shortlist, sparse
 from .base import BaseClassifier
 import logging
-import operator
 import time
-import _pickle as pickle
-import scipy.sparse as sp
 from ..data import data_loader
 
 

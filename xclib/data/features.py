@@ -22,45 +22,73 @@ class FeaturesBase(object):
     def frequency(self, axis=0):
         return np.array(self.X.sum(axis=axis)).ravel()
 
-    def get_invalid(self, axis=0):
+    def get_invalid_indices(self, axis=0):
+        """
+        Get indices of invalid rows/columns (no data available)
+        """
         return np.where(self.frequency(axis) == 0)[0]
 
-    def get_valid(self, axis=0):
+    def get_valid_indices(self, axis=0):
+        """
+        Get indices of only valid rows/columns (data available)
+        """
         return np.where(self.frequency(axis) > 0)[0]
 
     def remove_invalid(self, axis=0):
-        indices = self.get_valid(axis)
+        """
+        Get indices of invalid row (axis=0) or column (axis=1)
+        Remove them in-place and return indices
+        """
+        indices = self.get_valid_indices(axis)
         self.X = self.index_select(indices, axis=1-axis)
         return indices
 
-    def _select_instances(self, indices):
+    def instance_select(self, indices):
+        """
+        Return instances (rows) as per given indices
+        """
         return self.X[indices]
 
-    def _select_features(self, indices):
-        # Not valid in general case
-        pass
-
-    def index_select(self, indices, axis=1, fname=None):
+    def feature_select(self, indices):
         """
-            Choose only selected labels or instances
+        Return features (columns) as per given indices
+        * Not applicable in general case
+        """
+        raise NotImplementedError("")
+
+    def _index_select(self, indices, axis=1):
+        """
+        Keep data as per given indices and axis only (will modify data)
+        """
+        self.X = self.index_select(indices, axis=axis)
+
+    def index_select(self, indices, axis=1):
+        """
+        Return data as per given indices and axis
         """
         # TODO: Load and select from file
         if axis == 0:
-            return self._select_instances(indices)
+            return self.instance_select(indices)
         elif axis == 1:
-            return self._select_features(indices)
+            return self.feature_select(indices)
         else:
             raise NotImplementedError("Unknown Axis.")
 
     def load(self, data_dir, fname, X):
+        """
+        Load data (to be implemented for specific features)
+        """
         if X is not None:
             return X
         else:
             raise NotImplementedError("Loading module not implemented")
 
     def normalize(self, norm='l2', copy=False):
-        # Not valid in general case
-        pass
+        """
+        Load data (to be implemented for specific features)
+        * Not valid in general case
+        """
+        raise NotImplementedError("")
 
     @property
     def num_instances(self):
@@ -102,7 +130,7 @@ class DenseFeatures(FeaturesBase):
         if normalize:
             self.normalize()
 
-    def _select_features(self, indices):
+    def feature_select(self, indices):
         return self.X[:, indices]
 
     def normalize(self, norm='l2', copy=False):
@@ -151,7 +179,7 @@ class SparseFeatures(FeaturesBase):
     def normalize(self, norm='l2', copy=False):
         self.X = scale(self.X, copy=copy, norm=norm)
 
-    def _select_features(self, indices):
+    def feature_select(self, indices):
         return self.X[:, indices]
 
     def frequency(self, axis=0):
