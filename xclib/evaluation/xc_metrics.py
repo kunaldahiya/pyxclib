@@ -17,16 +17,22 @@ def compatible_shapes(x, y):
     return x.shape == y.shape
 
 
-def jaccard_similarity(pred_0, pred_1, y=None):
+def jaccard_similarity(pred_0, pred_1, copy=True, y=None):
     """Jaccard similary b/w two different predictions matrices
     Args:
     pred_0: csr_matrix
         prediction for algorithm 0
     pred_1: csr_matrix
         prediction for algorithm 1
+    copy: bool
+        retain original pred_0 and pred_1 if true
     y: csr_matrix or None
         true labels
     """
+    if copy:
+        pred_0 = pred_0.copy()
+        pred_1 = pred_1.copy()
+
     def _correct_only(pred, y):
         pred = pred.multiply(y)
         pred.eliminate_zeros()
@@ -55,6 +61,7 @@ def format(*args, decimal_points='%0.2f'):
             ','.join(list(map(lambda x: decimal_points % (x*100), vals))))
     return '\n'.join(out)
 
+
 def _broad_cast(mat, like):
     if isinstance(like, np.ndarray):
         return np.asarray(mat)
@@ -63,6 +70,7 @@ def _broad_cast(mat, like):
     else:
         raise NotImplementedError(
             "Unknown type; please pass csr_matrix, np.ndarray or dict.")
+
 
 def _get_topk(X, pad_indx=0, k=5):
     """
@@ -163,7 +171,7 @@ def _setup_metric(X, true_labels, inv_psp=None, k=5):
     ps_indices = None
     if inv_psp is not None:
         _mat = sp.spdiags(inv_psp, diags=0,
-                           m=num_labels, n=num_labels)
+                          m=num_labels, n=num_labels)
         _psp_wtd = _broad_cast(_mat.dot(true_labels.T).T, true_labels)
         ps_indices = _get_topk(_psp_wtd, num_labels, k)
         inv_psp = np.hstack([inv_psp, np.zeros((1))])
@@ -399,7 +407,7 @@ def _auc(X, k):
     cum_noninv = np.sum(np.multiply(non_inv, 1-X), axis=1)
     n_pos = non_inv[:, -1]
     all_pairs = np.multiply(n_pos, k-n_pos)
-    all_pairs[all_pairs==0] = 1.0 #for safe divide
+    all_pairs[all_pairs == 0] = 1.0  # for safe divide
     point_auc = np.divide(cum_noninv, all_pairs)
     return np.mean(point_auc)
 
