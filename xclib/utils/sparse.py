@@ -6,6 +6,28 @@ from sklearn.preprocessing import normalize as sk_normalize
 from scipy.special import expit
 
 
+def binarize(X, copy=False):
+    """Binarize a sparse matrix
+    """
+    if copy:
+        X = X.copy()
+    X.data.fill(1)
+    return X
+
+
+def frequency(X, axis=0, copy=False):
+    '''Count non-zeros 
+    Arguments:
+    ----------
+    X: csr_matrix
+        sparse matrix to process
+    axis: int, optional, default=0
+        reduce along this axis
+    '''
+    X = binarize(X, copy)
+    return np.ravel(X.sum(axis=axis))
+
+
 def rank(X):
     '''Rank of each element in decreasing order (per-row)
     Ranking will start from one (with zero at zero entries)
@@ -66,15 +88,6 @@ def retain_topk(X, copy=True, k=5):
         X = X.copy()
     X.data[ranks.data > k] = 0.0
     X.eliminate_zeros()
-    return X
-
-
-def binarize(X, copy=False):
-    """Binarize a sparse matrix
-    """
-    if copy:
-        X = X.copy()
-    X.data.fill(1)
     return X
 
 

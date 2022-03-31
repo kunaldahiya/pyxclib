@@ -1,6 +1,6 @@
 import numpy as np
 from .data_utils import read_gen_sparse
-from ..utils.sparse import normalize, binarize
+from ..utils.sparse import normalize, binarize, frequency
 import os
 
 
@@ -96,7 +96,7 @@ class LabelsBase(object):
             NotImplementedError("Unknown Axis.")
 
     def frequency(self, axis=0):
-        return np.array(self.Y.astype(np.bool).sum(axis=axis)).ravel() \
+        return frequency(self.Y, axis=axis, copy=True) \
             if self._valid else None
 
     def transpose(self):

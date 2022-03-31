@@ -1,7 +1,7 @@
-import numpy as np
 import random
 from operator import itemgetter
 from xclib.utils.ann import NearestNeighbor
+from xclib.utils.sparse import frequency
 
 
 def _sort_kv(ind, vals):
@@ -10,53 +10,73 @@ def _sort_kv(ind, vals):
     return ind, vals
 
 
-def _as_string(ind, vals):
+def _as_string(ind, vals, text, gt_ind, freq):
     """Represent key, val pairs as a string
     """
-    if vals is None:
-        return ", ".join(["{}".format(item) for item in ind])
+    def get_status(a, b):
+        return "C" if a in b else "W"
+    
+    output = []
+    gt_ind = set(gt_ind)
+    
+    if freq is None:
+        for i, (k, v) in enumerate(zip(ind, vals)):
+            output.append(f"{text[i]}: {v:.2f} ({get_status(k, gt_ind)})")
     else:
-        return ", ".join(["{}: {:.2f}".format(
-            item[0], item[1]) for item in zip(ind, vals)])
+        for i, (k, v, f) in enumerate(zip(ind, vals, freq)):
+            output.append(f"{text[i]}: {v:.2f} ({get_status(k, gt_ind)}, {f})")
+    return ", ".join(output)
 
 
 def get_random_indices(size, num_samples=1):
     return [random.randint(0, size-1) for _ in range(num_samples)]
 
 
-def compare_predictions(docs, labels, true_labels, predicted_labels,
-                        sample_indices=None, num_samples=10):
+def compare_predictions(doc_text, label_text, true_labels, predicted_labels,
+                        train_labels=None, sample_indices=None, n_samples=10):
     """Print predictions for qualitative analysis
     Parameters
     ---------
-    docs: list of str
+    doc_text: list of str
         text of documents
-    labels: list of str
+    label_text: list of str
         text of labels
     true_labels: csr_matrix
         true labels with shape (num_samples, num_labels)
     predicted_labels: dict of csr_matrix
         multiple predicted labels with shape (num_samples, num_labels)
         method is identified using keys
-    num_samples: int, optional, default=10
-        Analyze for these many samples
+    train_labels: csr_matrix, optional, default=None
+        train labels (used to compute frequency)
     sample_indices: iterator, optional, default=None
         Analyze for these samples
+    n_samples: int, optional, default=10
+        Analyze for these many random samples
+        * used only when sample_indices is none 
     """
+    def process_one(_pred, _true, ind, text, freq):
+        i, s = _pred[ind].indices, _pred[ind].data
+        i, s = _sort_kv(i, s)
+        f = None if freq is None else freq[i]
+        return _as_string(
+            i, s, itemgetter(*i)(text), _true[ind].indices, f)
+
+    freq = None
+    if train_labels is not None:
+        # get #train documents for each label
+        freq = frequency(train_labels, axis=0, copy=True).astype('int')
+
     if sample_indices is None:
-        sample_indices = get_random_indices(len(docs), num_samples)
+        sample_indices = get_random_indices(len(doc_text), n_samples)
 
-    for _, idx in enumerate(sample_indices):
-        _true = itemgetter(*true_labels[idx].indices)(labels)
+    for _, i in enumerate(sample_indices):
+        _true = itemgetter(*true_labels[i].indices)(label_text)
+        _true = ", ".join((_true, ) if isinstance(_true, str) else _true)
         _pred = ""
-        for key, val in predicted_labels.items():
-            _ind, _score = val[idx].indices, val[idx].data
-            _ind, _score = _sort_kv(_ind, _score)
-            _pred += "{}: {}\n\n".format(
-                key, _as_string(itemgetter(*_ind)(labels), _score))
-
-        print("text: {}\ntrue labels: {}\n\n{}-----\n".format(
-            docs[idx], _true, _pred))
+        for k, v in predicted_labels.items():
+            _pred_one = process_one(v, true_labels, i, label_text, freq)
+            _pred += f"{k}: {_pred_one}\n\n"
+        print(f"text: {doc_text[i]}\n\ntrue labels: {_true}\n\n{_pred}----\n")
 
 
 def compare_nearest_neighbors(tr_embedding, tr_text, ts_embedding=None,
