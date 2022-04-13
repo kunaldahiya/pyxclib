@@ -176,16 +176,22 @@ def _setup_metric(X, true_labels, inv_psp=None, k=5):
         ps_indices = _get_topk(_psp_wtd, num_labels, k)
         inv_psp = np.hstack([inv_psp, np.zeros((1))])
 
-    true_labels = sp.hstack([true_labels,
-                             sp.lil_matrix((num_instances, 1),
-                                           dtype=np.int32)]).tocsr()
+    idx_dtype = true_labels.indices.dtype
+    true_labels = sp.csr_matrix(
+        (true_labels.data, true_labels.indices, true_labels.indptr),
+        shape=(num_instances, num_labels+1), dtype=true_labels.dtype)
+
+    # scipy won't respect the dtype of indices
+    # may fail otherwise on really large datasets
+    true_labels.indices = true_labels.indices.astype(idx_dtype)
     return indices, true_labels, ps_indices, inv_psp
 
 
 def _eval_flags(indices, true_labels, inv_psp=None):
     if sp.issparse(true_labels):
-        eval_flags = np.take_along_axis(true_labels.tocsc(),
-                                        indices, axis=-1).todense()
+        nr, nc = indices.shape
+        rows = np.repeat(np.arange(nr).reshape(-1, 1), nc)
+        eval_flags = true_labels[rows, indices.ravel()].A1.reshape(nr, nc)
     elif type(true_labels) == np.ndarray:
         eval_flags = np.take_along_axis(true_labels,
                                         indices, axis=-1)
@@ -331,7 +337,7 @@ def _ndcg(eval_flags, n, k=5):
     for _k in range(k):
         _cumsum += 1/np.log2(_k+1+1)
         ndcg[0, _k] = np.mean(
-            np.multiply(_dcg[:, _k], 1/np.minimum(n, _cumsum))
+            np.multiply(_dcg[:, _k].reshape(-1, 1), 1/np.minimum(n, _cumsum))
         )
     return np.ravel(ndcg)
 
