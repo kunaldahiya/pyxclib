@@ -3,7 +3,7 @@
 """
 import scipy.sparse as sp
 import numpy as np
-from xclib.utils.sparse import topk, binarize, retain_topk
+from xclib.utils.sparse import topk, binarize
 import warnings
 
 
@@ -13,8 +13,31 @@ __author__ = 'X'
 def compatible_shapes(x, y):
     """
     See if both matrices have same shape
+
+    Works fine for the following combinations:
+    * both are sparse
+    * both are dense
+    
+    Will only compare rows when:
+    * one is sparse/dense and other is dict
+    * one is sparse and other is dense 
+
+    ** User must ensure that predictions are of correct shape when a
+    np.ndarray is passed with all predictions. 
     """
-    return x.shape == y.shape
+    # both are either sparse or dense
+    if (sp.issparse(x) and sp.issparse(y)) \
+        or (isinstance(x, np.ndarray) and isinstance(y, np.ndarray)):
+        return x.shape == y.shape
+
+    # compare #rows if one is sparse and other is dict or np.ndarray
+    if not (isinstance(x, dict) or isinstance(y, dict)):
+        return x.shape[0] == y.shape[0]
+    else:
+        if isinstance(x, dict):
+            return len(x['indices']) == len(x['scores']) == y.shape[0]
+        else:
+            return len(y['indices']) == len(y['scores']) == x.shape[0]
 
 
 def jaccard_similarity(pred_0, pred_1, copy=True, y=None):
@@ -72,28 +95,12 @@ def _broad_cast(mat, like):
             "Unknown type; please pass csr_matrix, np.ndarray or dict.")
 
 
-def _get_topk(X, pad_indx=0, k=5):
+def _get_topk(X, pad_indx=0, k=5, sorted=False):
     """
     Get top-k indices (row-wise); Support for
     * csr_matirx
     * 2 np.ndarray with indices and values
     * np.ndarray with indices or values
-
-    Arguments:
-    ---------
-    X: csr_matrix, np.ndarray or dict
-        csr_matrix: csr_matrix with nnz at relevant places
-        np.ndarray: array with indices (dtype=int) or values (dtype=float)
-        dict: 'indices' -> np.ndarray of indices and
-              'scores' -> np.ndarray of scores
-    pad_indx: int, optional (default=0)
-        padding index (useful when values are <k)
-    k: int, optional (default=5)
-        fetch top-k indices
-
-    Returns:
-    -------
-    np.ndarray: top-k indices for each row
     """
     if sp.issparse(X):
         X = X.tocsr()
@@ -101,9 +108,12 @@ def _get_topk(X, pad_indx=0, k=5):
         pad_indx = X.shape[1]
         indices = topk(X, k, pad_indx, 0, return_values=False)
     elif type(X) == np.ndarray:
+        # indices are given
+        assert X.shape[1] >= k, "Number of elements in X is < {}".format(k)
         if np.issubdtype(X.dtype, np.integer):
-            warnings.warn("Assuming indices are sorted in desc order.")
-            indices = X[:, :k]
+            assert sorted, "sorted must be true with indices"
+            indices = X[:, :k] if X.shape[1] > k else X
+        # values are given
         elif np.issubdtype(X.dtype, np.floating):
             _indices = np.argpartition(X, -k)[:, -k:]
             _scores = np.take_along_axis(
@@ -114,18 +124,27 @@ def _get_topk(X, pad_indx=0, k=5):
     elif type(X) == dict:
         indices = X['indices']
         scores = X['scores']
-        assert compatible_shapes(indices == scores), \
+        assert compatible_shapes(indices, scores), \
             "Dimension mis-match: expected array of shape {} found {}".format(
                 indices.shape, scores.shape)
-        assert scores.shape[1] < k, "Number of elements in X is < {}".format(
+        assert scores.shape[1] >= k, "Number of elements in X is < {}".format(
             k)
-        if scores.shape[1] >= k:
-            _indices = np.argpartition(_scores, -k)[:, -k:]
-            scores = np.take_along_axis(
-                X, _indices, axis=-1
+        # assumes indices are already sorted by the user
+        if sorted:
+            return indices[:, :k] if indices.shape[1] > k else indices
+
+        # get top-k entried without sorting them
+        if scores.shape[1] > k:
+            _indices = np.argpartition(scores, -k)[:, -k:]
+            _scores = np.take_along_axis(
+                scores, _indices, axis=-1
             )
-            __indices = np.argsort(-scores, axis=-1)
+            # sort top-k entries
+            __indices = np.argsort(-_scores, axis=-1)
             _indices = np.take_along_axis(_indices, __indices, axis=-1)
+            indices = np.take_along_axis(indices, _indices, axis=-1)
+        else:
+            _indices = np.argsort(-scores, axis=-1)
             indices = np.take_along_axis(indices, _indices, axis=-1)
     else:
         raise NotImplementedError(
@@ -163,11 +182,11 @@ def compute_inv_propesity(labels, A, B):
     return np.ravel(wts)
 
 
-def _setup_metric(X, true_labels, inv_psp=None, k=5):
+def _setup_metric(X, true_labels, inv_psp=None, k=5, sorted=False):
     assert compatible_shapes(X, true_labels), \
         "ground truth and prediction matrices must have same shape."
     num_instances, num_labels = true_labels.shape
-    indices = _get_topk(X, num_labels, k)
+    indices = _get_topk(X, num_labels, k, sorted)
     ps_indices = None
     if inv_psp is not None:
         _mat = sp.spdiags(inv_psp, diags=0,
@@ -200,55 +219,71 @@ def _eval_flags(indices, true_labels, inv_psp=None):
     return eval_flags
 
 
-def precision(X, true_labels, k=5):
+def precision(X, true_labels, k=5, sorted=False):
     """
     Compute precision@k for 1-k
 
     Arguments:
     ----------
     X: csr_matrix, np.ndarray or dict
-        csr_matrix: csr_matrix with nnz at relevant places
-        np.ndarray: array with indices (dtype=int) or values (dtype=float)
-        dict: 'indices' -> np.ndarray of indices and
-              'scores' -> np.ndarray of scores
+        * csr_matrix: csr_matrix with nnz at relevant places
+        * np.ndarray (float): scores for each label
+            User must ensure shape is fine
+        * np.ndarray (int): top indices (in sorted order)
+            User must ensure shape is fine
+        * {'indices': np.ndarray, 'scores': np.ndarray}
+
     true_labels: csr_matrix or np.ndarray
         ground truth in sparse or dense format
     k: int, optional (default=5)
         compute precision till k
+    sorted: boolean, optional, default=False
+        whether X is already sorted (will skip sorting)
+        * used when X is of type dict or np.ndarray (of indices)
+        * shape is not checked is X are np.ndarray
+        * must be set to true when X are np.ndarray (of indices)
 
     Returns:
     -------
     np.ndarray: precision values for 1-k
     """
-    indices, true_labels, _, _ = _setup_metric(X, true_labels, k=k)
+    indices, true_labels, _, _ = _setup_metric(
+        X, true_labels, k=k, sorted=sorted)
     eval_flags = _eval_flags(indices, true_labels, None)
     return _precision(eval_flags, k)
 
 
-def psprecision(X, true_labels, inv_psp, k=5):
+def psprecision(X, true_labels, inv_psp, k=5, sorted=False):
     """
     Compute propensity scored precision@k for 1-k
 
     Arguments:
     ----------
     X: csr_matrix, np.ndarray or dict
-        csr_matrix: csr_matrix with nnz at relevant places
-        np.ndarray: array with indices (dtype=int) or values (dtype=float)
-        dict: 'indices' -> np.ndarray of indices and
-              'scores' -> np.ndarray of scores
+        * csr_matrix: csr_matrix with nnz at relevant places
+        * np.ndarray (float): scores for each label
+            User must ensure shape is fine
+        * np.ndarray (int): top indices (in sorted order)
+            User must ensure shape is fine
+        * {'indices': np.ndarray, 'scores': np.ndarray}
     true_labels: csr_matrix or np.ndarray
         ground truth in sparse or dense format
     inv_psp: np.ndarray
         propensity scores for each label
     k: int, optional (default=5)
         compute propensity scored precision till k
+    sorted: boolean, optional, default=False
+        whether X is already sorted (will skip sorting)
+        * used when X is of type dict or np.ndarray (of indices)
+        * shape is not checked is X are np.ndarray
+        * must be set to true when X are np.ndarray (of indices)
 
     Returns:
     -------
     np.ndarray: propensity scored precision values for 1-k
     """
     indices, true_labels, ps_indices, inv_psp = _setup_metric(
-        X, true_labels, inv_psp, k=k)
+        X, true_labels, inv_psp, k=k, sorted=sorted)
     eval_flags = _eval_flags(indices, true_labels, inv_psp)
     ps_eval_flags = _eval_flags(ps_indices, true_labels, inv_psp)
     return _precision(eval_flags, k)/_precision(ps_eval_flags, k)
@@ -262,27 +297,36 @@ def _precision(eval_flags, k=5):
     return np.ravel(precision)
 
 
-def ndcg(X, true_labels, k=5):
+def ndcg(X, true_labels, k=5, sorted=False):
     """
     Compute nDCG@k for 1-k
 
     Arguments:
     ----------
     X: csr_matrix, np.ndarray or dict
-        csr_matrix: csr_matrix with nnz at relevant places
-        np.ndarray: array with indices (dtype=int) or values (dtype=float)
-        dict: 'indices' -> np.ndarray of indices and
-              'scores' -> np.ndarray of scores
+        * csr_matrix: csr_matrix with nnz at relevant places
+        * np.ndarray (float): scores for each label
+            User must ensure shape is fine
+        * np.ndarray (int): top indices (in sorted order)
+            User must ensure shape is fine
+        * {'indices': np.ndarray, 'scores': np.ndarray}
     true_labels: csr_matrix or np.ndarray
         ground truth in sparse or dense format
     k: int, optional (default=5)
         compute nDCG till k
+    sorted: boolean, optional, default=False
+        whether X is already sorted (will skip sorting)
+        * used when X is of type dict or np.ndarray (of indices)
+        * shape is not checked is X are np.ndarray
+        * must be set to true when X are np.ndarray (of indices)
+
 
     Returns:
     -------
     np.ndarray: nDCG values for 1-k
     """
-    indices, true_labels, _, _ = _setup_metric(X, true_labels, k=k)
+    indices, true_labels, _, _ = _setup_metric(
+        X, true_labels, k=k, sorted=sorted)
     eval_flags = _eval_flags(indices, true_labels, None)
     _total_pos = np.asarray(
         true_labels.sum(axis=1),
@@ -293,30 +337,38 @@ def ndcg(X, true_labels, k=5):
     return _ndcg(eval_flags, n, k)
 
 
-def psndcg(X, true_labels, inv_psp, k=5):
+def psndcg(X, true_labels, inv_psp, k=5, sorted=False):
     """
     Compute propensity scored nDCG@k for 1-k
 
     Arguments:
     ----------
     X: csr_matrix, np.ndarray or dict
-        csr_matrix: csr_matrix with nnz at relevant places
-        np.ndarray: array with indices (dtype=int) or values (dtype=float)
-        dict: 'indices' -> np.ndarray of indices and
-              'scores' -> np.ndarray of scores
+        * csr_matrix: csr_matrix with nnz at relevant places
+        * np.ndarray (float): scores for each label
+            User must ensure shape is fine
+        * np.ndarray (int): top indices (in sorted order)
+            User must ensure shape is fine
+        * {'indices': np.ndarray, 'scores': np.ndarray}
     true_labels: csr_matrix or np.ndarray
         ground truth in sparse or dense format
     inv_psp: np.ndarray
         propensity scores for each label
     k: int, optional (default=5)
         compute propensity scored nDCG till k
+    sorted: boolean, optional, default=False
+        whether X is already sorted (will skip sorting)
+        * used when X is of type dict or np.ndarray (of indices)
+        * shape is not checked is X are np.ndarray
+        * must be set to true when X are np.ndarray (of indices)
+
 
     Returns:
     -------
     np.ndarray: propensity scored nDCG values for 1-k
     """
     indices, true_labels, ps_indices, inv_psp = _setup_metric(
-        X, true_labels, inv_psp, k=k)
+        X, true_labels, inv_psp, k=k, sorted=sorted)
     eval_flags = _eval_flags(indices, true_labels, inv_psp)
     ps_eval_flags = _eval_flags(ps_indices, true_labels, inv_psp)
     _total_pos = np.asarray(
@@ -342,27 +394,36 @@ def _ndcg(eval_flags, n, k=5):
     return np.ravel(ndcg)
 
 
-def recall(X, true_labels, k=5):
+def recall(X, true_labels, k=5, sorted=False):
     """
     Compute recall@k for 1-k
 
     Arguments:
     ----------
     X: csr_matrix, np.ndarray or dict
-        csr_matrix: csr_matrix with nnz at relevant places
-        np.ndarray: array with indices (dtype=int) or values (dtype=float)
-        dict: 'indices' -> np.ndarray of indices and
-              'scores' -> np.ndarray of scores
+        * csr_matrix: csr_matrix with nnz at relevant places
+        * np.ndarray (float): scores for each label
+            User must ensure shape is fine
+        * np.ndarray (int): top indices (in sorted order)
+            User must ensure shape is fine
+        * {'indices': np.ndarray, 'scores': np.ndarray}
     true_labels: csr_matrix or np.ndarray
         ground truth in sparse or dense format
     k: int, optional (default=5)
         compute recall till k
+    sorted: boolean, optional, default=False
+        whether X is already sorted (will skip sorting)
+        * used when X is of type dict or np.ndarray (of indices)
+        * shape is not checked is X are np.ndarray
+        * must be set to true when X are np.ndarray (of indices)
+
 
     Returns:
     -------
     np.ndarray: recall values for 1-k
     """
-    indices, true_labels, _, _ = _setup_metric(X, true_labels, k=k)
+    indices, true_labels, _, _ = _setup_metric(
+        X, true_labels, k=k, sorted=sorted)
     deno = true_labels.sum(axis=1)
     deno[deno == 0] = 1
     deno = 1/deno
@@ -370,30 +431,38 @@ def recall(X, true_labels, k=5):
     return _recall(eval_flags, deno, k)
 
 
-def psrecall(X, true_labels, inv_psp, k=5):
+def psrecall(X, true_labels, inv_psp, k=5, sorted=False):
     """
     Compute propensity scored recall@k for 1-k
 
     Arguments:
     ----------
     X: csr_matrix, np.ndarray or dict
-        csr_matrix: csr_matrix with nnz at relevant places
-        np.ndarray: array with indices (dtype=int) or values (dtype=float)
-        dict: 'indices' -> np.ndarray of indices and
-              'scores' -> np.ndarray of scores
+        * csr_matrix: csr_matrix with nnz at relevant places
+        * np.ndarray (float): scores for each label
+            User must ensure shape is fine
+        * np.ndarray (int): top indices (in sorted order)
+            User must ensure shape is fine
+        * {'indices': np.ndarray, 'scores': np.ndarray}
     true_labels: csr_matrix or np.ndarray
         ground truth in sparse or dense format
     inv_psp: np.ndarray
         propensity scores for each label
     k: int, optional (default=5)
         compute propensity scored recall till k
+    sorted: boolean, optional, default=False
+        whether X is already sorted (will skip sorting)
+        * used when X is of type dict or np.ndarray (of indices)
+        * shape is not checked is X are np.ndarray
+        * must be set to true when X are np.ndarray (of indices)
+
 
     Returns:
     -------
     np.ndarray: propensity scored recall values for 1-k
     """
     indices, true_labels, ps_indices, inv_psp = _setup_metric(
-        X, true_labels, inv_psp, k=k)
+        X, true_labels, inv_psp, k=k, sorted=sorted)
     deno = true_labels.sum(axis=1)
     deno[deno == 0] = 1
     deno = 1/deno
@@ -418,27 +487,36 @@ def _auc(X, k):
     return np.mean(point_auc)
 
 
-def auc(X, true_labels, k):
+def auc(X, true_labels, k, sorted=False):
     """
     Compute AUC score
 
     Arguments:
     ----------
     X: csr_matrix, np.ndarray or dict
-        csr_matrix: csr_matrix with nnz at relevant places
-        np.ndarray: array with indices (dtype=int) or values (dtype=float)
-        dict: 'indices' -> np.ndarray of indices and
-              'scores' -> np.ndarray of scores
+        * csr_matrix: csr_matrix with nnz at relevant places
+        * np.ndarray (float): scores for each label
+            User must ensure shape is fine
+        * np.ndarray (int): top indices (in sorted order)
+            User must ensure shape is fine
+        * {'indices': np.ndarray, 'scores': np.ndarray}
     true_labels: csr_matrix or np.ndarray
         ground truth in sparse or dense format
     k: int, optional (default=5)
         retain top-k predictions only
+    sorted: boolean, optional, default=False
+        whether X is already sorted (will skip sorting)
+        * used when X is of type dict or np.ndarray (of indices)
+        * shape is not checked is X are np.ndarray
+        * must be set to true when X are np.ndarray (of indices)
+
 
     Returns:
     -------
     np.ndarray: auc score
     """
-    indices, true_labels, _, _ = _setup_metric(X, true_labels, k=k)
+    indices, true_labels, _, _ = _setup_metric(
+        X, true_labels, k=k, sorted=sorted)
     eval_flags = _eval_flags(indices, true_labels, None)
     return _auc(eval_flags, k)
 
@@ -476,17 +554,26 @@ class Metrics(object):
         if inv_psp is not None:
             self.inv_psp = np.ravel(inv_psp)
 
-    def eval(self, predicted_labels, K=5):
+    def eval(self, pred_labels, K=5, sorted=False):
         """
         Compute values
 
         Arguments:
         ---------
-        predicted_labels: csr_matrix, np.ndarray
-            csr_matrix: csr_matrix with nnz at relevant places
-            np.ndarray: scores for each label (dtype=float)
+        predicted_labels: csr_matrix, np.ndarray, dict
+            * csr_matrix: csr_matrix with nnz at relevant places
+            * np.ndarray (float): scores for each label
+              User must ensure shape is fine
+            * np.ndarray (int): top indices (in sorted order)
+              User must ensure shape is fine
+            * {'indices': np.ndarray, 'scores': np.ndarray}
         k: int, optional; default=5
             compute values till k
+        sorted: boolean, optional, default=5
+            whether pred_labels is already sorted (will skip sorting)
+            * used when pred_labels is of type dict or np.ndarray (of indices)
+            * shape is not checked is pred_labels are np.ndarray
+            * must be set to true when pred_labels are np.ndarray (of indices)
 
         Returns:
         -------
@@ -494,11 +581,17 @@ class Metrics(object):
             vanilla and propensity scored metrics, otherwise
         """
         if self.valid_idx is not None:
-            predicted_labels = predicted_labels[self.valid_idx]
-        assert predicted_labels.shape == self.true_labels.shape
+            if isinstance(dict):
+                pred_labels['indices'] = pred_labels['indices'][self.valid_idx]
+                pred_labels['scores'] = pred_labels['scores'][self.valid_idx]
+            else:
+                pred_labels = pred_labels[self.valid_idx]
+            
+        assert compatible_shapes(self.true_labels, pred_labels), \
+            "Shapes must be compatible for ground truth and predictions"
         indices, true_labels, ps_indices, inv_psp = _setup_metric(
-            predicted_labels, self.true_labels,
-            self.inv_psp, k=K)
+            pred_labels, self.true_labels,
+            self.inv_psp, k=K, sorted=sorted)
         _total_pos = np.asarray(
             true_labels.sum(axis=1),
             dtype=np.int32)
