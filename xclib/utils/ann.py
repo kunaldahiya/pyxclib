@@ -151,7 +151,7 @@ class HNSWLib(object):
         self._init()
         self.index.init_index(
             max_elements=self.max_elements, ef_construction=self.efC, M=self.M)
-        self.index.add_items(data)
+        self.index.add_items(data, num_threads=self.num_threads)
 
     def _set_query_time_params(self, efS=None, num_neighbours=None):
         self.efS = efS if efS is not None else self.efS
@@ -160,7 +160,8 @@ class HNSWLib(object):
         self.index.set_ef(self.efS)
 
     def _predict(self, data):
-        return self.index.knn_query(data, k=self.num_neighbours)
+        return self.index.knn_query(
+            data, k=self.num_neighbours, num_threads=self.num_threads)
 
     def predict(self, data, efS=None, num_neighbours=None):
         self._set_query_time_params(efS, num_neighbours)
