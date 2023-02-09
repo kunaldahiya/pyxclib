@@ -521,7 +521,7 @@ def auc(X, true_labels, k, sorted=False):
     return _auc(eval_flags, k)
 
 @nb.njit(parallel=True)
-def _fast_recall(true_labels_indices, true_labels_indptr, pred_labels_data, pred_labels_indices, pred_labels_indptr, top_k):
+def _recall_nb_at_k(true_labels_indices, true_labels_indptr, pred_labels_data, pred_labels_indices, pred_labels_indptr, top_k):
     fracs = -1 * np.ones((len(true_labels_indptr) - 1, ), dtype=np.float32)
     for i in nb.prange(len(true_labels_indptr) - 1):
         _true_labels = true_labels_indices[true_labels_indptr[i] : true_labels_indptr[i + 1]]
@@ -533,7 +533,7 @@ def _fast_recall(true_labels_indices, true_labels_indptr, pred_labels_data, pred
             fracs[i] = len(set(_pred_labels).intersection(set(_true_labels))) / len(_true_labels)
     return np.mean(fracs[fracs != -1])
 
-def fast_recall(X, true_labels, k=5):
+def recall_nb_at_k(X, true_labels, k=5):
     """
     Compute recall@k, faster than using `recall`
 
@@ -549,7 +549,7 @@ def fast_recall(X, true_labels, k=5):
     -------
     float: recall@k
     """
-    return _fast_recall(true_labels.indices.astype(np.int64), true_labels.indptr, 
+    return _recall_nb_at_k(true_labels.indices.astype(np.int64), true_labels.indptr, 
     X.data, X.indices.astype(np.int64), X.indptr, k)
 
 def generate_gt_metrics(X, true_labels):
