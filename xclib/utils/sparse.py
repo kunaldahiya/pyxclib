@@ -1,5 +1,5 @@
 from ._sparse import _rank, read_file, read_file_safe, _topk
-from scipy.sparse import csr_matrix, isspmatrix, coo_matrix
+from scipy.sparse import csr_matrix, isspmatrix, coo_matrix, save_npz
 import numpy as np
 import warnings
 from sklearn.preprocessing import normalize as sk_normalize
@@ -394,3 +394,44 @@ def compute_centroid(X, Y, reduction='sum', _binarize=False, copy=True):
         raise NotImplementedError(
             "Reduction {} not yet implemented.".format(reduction))
     return centroids
+
+def generate_gt_smat(smat, true_labels, model_gt_smat_dir=None):
+    """
+    Prunes smat to contain top-x elements where x is number of ground truth for that data point
+    * output is sparse
+
+    Arguments:
+    ---------
+    smat: scipy.sparse.csr_matrix
+        score mat of predictions
+    true_labels: scipy.sparse.csr_matrix
+        ground truth matrix
+    model_gt_smat_dir: str, optional (default='None')
+        path where to save the resulting score mat after doing top-x
+
+    Returns:
+    --------
+    gt_smat: scipy.sparse.csr_matrix
+        top-gt pruned score mat
+    """
+    num_elts = true_labels.nnz
+    rows = np.zeros(num_elts)
+    cols = np.zeros(num_elts)
+    data = np.zeros(num_elts)
+    curr_ctr = 0
+    for data_pt_indx in range(smat.shape[0]):
+        gt_cardinality = true_labels[data_pt_indx].nnz 
+      
+        top_gt_card_elts = retain_topk(smat[data_pt_indx], k=gt_cardinality).tocoo()
+        npreds = top_gt_card_elts.nnz
+        rows[curr_ctr: curr_ctr + npreds] = [data_pt_indx for i in range(0, npreds)]
+        cols[curr_ctr: curr_ctr + npreds] = top_gt_card_elts.col
+        data[curr_ctr: curr_ctr + npreds] = top_gt_card_elts.data
+        
+        curr_ctr = curr_ctr + npreds
+    
+    gt_smat = csr_matrix((np.array(data), (np.array(rows), np.array(cols))), shape=smat.shape)
+    gt_smat.eliminate_zeros()
+    if model_gt_smat_dir is not None:
+        save_npz(f'{model_gt_smat_dir}/gt_smat.npz', gt_smat)
+    return gt_smat

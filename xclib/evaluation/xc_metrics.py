@@ -3,7 +3,7 @@
 """
 import scipy.sparse as sp
 import numpy as np
-from xclib.utils.sparse import topk, binarize
+from xclib.utils.sparse import topk, binarize, generate_gt_smat
 import warnings
 
 
@@ -520,6 +520,65 @@ def auc(X, true_labels, k, sorted=False):
     eval_flags = _eval_flags(indices, true_labels, None)
     return _auc(eval_flags, k)
 
+def _fast_recall(true_labels_indices, true_labels_indptr, pred_labels_data, pred_labels_indices, pred_labels_indptr, top_k):
+    fracs = []
+    for i in range(len(true_labels_indptr) - 1):
+        _true_labels = true_labels_indices[true_labels_indptr[i] : true_labels_indptr[i + 1]]
+        _data = pred_labels_data[pred_labels_indptr[i] : pred_labels_indptr[i + 1]]
+        _indices = pred_labels_indices[pred_labels_indptr[i] : pred_labels_indptr[i + 1]]
+        top_inds = np.argsort(_data)[::-1][:top_k]
+        _pred_labels = _indices[top_inds]
+        if(len(_true_labels) > 0):
+            fracs.append(len(set(_pred_labels).intersection(set(_true_labels))) / len(_true_labels))
+    return np.mean(np.array(fracs, dtype=np.float32))
+
+def fast_recall(X, true_labels, k=5):
+    """
+    Compute recall@k, faster than using `recall`
+
+    Arguments:
+    ----------
+    X: csr_matrix
+        * csr_matrix: csr_matrix with nnz at relevant places
+    true_labels: csr_matrix
+        ground truth in sparse format
+    k: int, optional (default=5)
+        compute recall at k
+    Returns:
+    -------
+    float: recall@k
+    """
+    return _fast_recall(true_labels.indices.astype(np.int64), true_labels.indptr, 
+    X.data, X.indices.astype(np.int64), X.indptr, k)
+
+def generate_gt_metrics(X, true_labels):
+    """
+    Compute recall@GT, microRecall@GT 
+
+    Arguments:
+    ----------
+    X: csr_matrix
+        * csr_matrix: csr_matrix with nnz at relevant places
+    true_labels: csr_matrix
+        ground truth in sparse format
+    Returns:
+    -------
+    dict: contains recall@GT and microRecall@GT
+    """
+    X_top_gt = generate_gt_smat(X, true_labels)
+    intersection = X_top_gt.multiply(true_labels)
+    intersection.eliminate_zeros()
+    
+    micro_recall_at_gt = intersection.nnz / true_labels.nnz
+    
+    recall_at_gt_num = np.array(intersection.sum(axis = 1)).flatten()
+    recall_at_gt_den = np.array(true_labels.sum(axis = 1)).flatten()
+    recall_at_gt = np.mean(recall_at_gt_num / recall_at_gt_den)
+    
+    return {
+        'MicroRecall@GT': micro_recall_at_gt * 100,
+        'Recall@GT': recall_at_gt * 100
+    }
 
 class Metrics(object):
     def __init__(self, true_labels, inv_psp=None, remove_invalid=False):
