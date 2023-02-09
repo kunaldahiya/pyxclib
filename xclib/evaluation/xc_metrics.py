@@ -3,11 +3,10 @@
 """
 import scipy.sparse as sp
 import numpy as np
-from xclib.utils.sparse import topk, binarize
 import warnings
-
-
-__author__ = 'X'
+from xclib.utils.sparse import topk, binarize
+from xclib.utils.numba_utils import in1d, mean_rows
+import numba as nb
 
 
 def compatible_shapes(x, y):
@@ -616,3 +615,134 @@ class Metrices(Metrics):
             "Metrices() is deprecated; use Metrics().",
             category=FutureWarning)
         super().__init__(true_labels, inv_propensity_scores, remove_invalid)
+
+
+@nb.njit(parallel=True)
+def _fast_precision_with_indices(predicted, true_indices, true_indptr, k):
+    """predicted: predicted indices sorted by distance
+       assume predicted indices are unique in each row 
+    """
+    m = predicted.shape[0]
+    cum_intersections = np.zeros((m, k), dtype=np.float64)
+    for i in nb.prange(predicted.shape[0]):
+        intersection = in1d(predicted[i][:k], np.unique(true_indices[true_indptr[i]: true_indptr[i + 1]]))
+        cum_intersections[i] = np.cumsum(intersection)
+
+    precision = mean_rows(np.multiply(cum_intersections, 1 / (np.arange(k) + 1)))
+    
+    return precision
+
+def fast_precision_with_indices(X_indices, true_labels, k):
+    """
+    Compute precision@k for values 1...k, faster than using `precision`
+    Arguments:
+    ----------
+    X_indices: np.ndarray
+        2D numpy array with indices sorted in descending order according to score for each row
+    true_labels: csr_matrix
+        ground truth in sparse format
+    k: int
+        compute psprecision for ints in [1, k]
+    Returns:
+    -------
+    float: recall@k
+    """
+    return _fast_precision_with_indices(X_indices, true_labels.indices.astype(np.int64), true_labels.indptr, k)
+
+@nb.njit(parallel=True)
+def _fast_psprecision_with_indices(predicted, true_indices, true_indptr, k, inv_propensities):
+    """predicted: predicted indices sorted by distance
+       assume predicted indices are unique in each row 
+    """
+    m = predicted.shape[0]
+    cum_intersections = np.zeros((m, k), dtype=np.float64)
+    cum_total = np.zeros((m, k), dtype=np.float64)
+    for i in nb.prange(predicted.shape[0]):
+        intersection = in1d(predicted[i][:k], np.unique(true_indices[true_indptr[i]: true_indptr[i + 1]]))
+        total = inv_propensities[predicted[i][:k]]
+        intersection = np.multiply(total, intersection.astype(np.float64))
+        
+        cum_intersections[i] = np.cumsum(intersection)
+        cum_total[i] = np.cumsum(total)
+
+    precision = mean_rows(cum_intersections / cum_total)
+    
+    return precision
+
+def fast_psprecision_with_indices(X_indices, true_labels, inv_propensities, k):
+    """
+    Compute propensity weighted precision@k for values 1...k, faster than using `psprecision`
+    Arguments:
+    ----------
+    X_indices: np.ndarray
+        2D numpy array with indices sorted in descending order according to score for each row
+    true_labels: csr_matrix
+        ground truth in sparse format
+    k: int
+        compute psprecision for ints in [1, k]
+    Returns:
+    -------
+    float: recall@k
+    """
+    return _fast_psprecision_with_indices(X_indices, true_labels.indices.astype(np.int64), true_labels.indptr, k, inv_propensities)
+
+@nb.njit(parallel=True)
+def _fast_recall_at_k(true_labels_indices, true_labels_indptr, pred_labels_data, pred_labels_indices, pred_labels_indptr, top_k):
+    fracs = -1 * np.ones((len(true_labels_indptr) - 1, ), dtype=np.float32)
+    for i in nb.prange(len(true_labels_indptr) - 1):
+        _true_labels = true_labels_indices[true_labels_indptr[i] : true_labels_indptr[i + 1]]
+        _data = pred_labels_data[pred_labels_indptr[i] : pred_labels_indptr[i + 1]]
+        _indices = pred_labels_indices[pred_labels_indptr[i] : pred_labels_indptr[i + 1]]
+        top_inds = np.argsort(_data)[::-1][:top_k]
+        _pred_labels = _indices[top_inds]
+        if(len(_true_labels) > 0):
+            fracs[i] = len(set(_pred_labels).intersection(set(_true_labels))) / len(_true_labels)
+    return np.mean(fracs[fracs != -1])
+
+def fast_recall_k(X, true_labels, k):
+    """
+    Compute recall@k, faster than using `recall`
+    Arguments:
+    ----------
+    X: csr_matrix
+        * csr_matrix: csr_matrix with nnz at relevant places
+    true_labels: csr_matrix
+        ground truth in sparse format
+    k: int
+        compute recall at k
+    Returns:
+    -------
+    float: recall@k
+    """
+    return _fast_recall_at_k(true_labels.indices.astype(np.int64), true_labels.indptr, 
+    X.data, X.indices.astype(np.int64), X.indptr, k)
+
+@nb.njit(parallel=True)
+def _recall_with_indices(true_labels_indices, true_labels_indptr, pred_indices):
+    print(pred_indices.shape)
+    fracs = np.zeros((pred_indices.shape[0],), dtype=np.float32)
+    for i in nb.prange(len(true_labels_indptr) - 1):
+        _true_labels = true_labels_indices[true_labels_indptr[i] : true_labels_indptr[i + 1]]
+        
+        if(len(_true_labels) > 0):
+            fracs[i] = (len(set(pred_indices[i]).intersection(set(_true_labels))) / len(_true_labels))
+    
+    return np.mean(fracs)
+
+def recall_with_indices(true_labels, pred_indices, pred_data, top_k):
+    n = pred_indices.shape[1]
+    
+    if(pred_data is None):
+        top_k = n
+    
+    print(f"calculating recall@{top_k}")
+    
+    assert n >= top_k, f"k for recall@k[{top_k}] is larger than the predictions being provided[{n}]"
+    
+    if(top_k < n):
+        top_inds = np.argsort(pred_data, axis=1)[::-1][:, :top_k]
+        _indices = pred_indices[np.arange(pred_indices.shape[0])[:, None], top_inds]
+    else:
+        _indices = pred_indices
+
+    return _recall_with_indices(true_labels.indices.astype(np.int64), true_labels.indptr, _indices.astype(np.int64))
