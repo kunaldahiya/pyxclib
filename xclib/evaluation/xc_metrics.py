@@ -645,7 +645,7 @@ def fast_precision_with_indices(X_indices, true_labels, k):
         compute psprecision for ints in [1, k]
     Returns:
     -------
-    float: recall@k
+    np.ndarray: precison values
     """
     return _fast_precision_with_indices(X_indices, true_labels.indices.astype(np.int64), true_labels.indptr, k)
 
@@ -682,7 +682,7 @@ def fast_psprecision_with_indices(X_indices, true_labels, inv_propensities, k):
         compute psprecision for ints in [1, k]
     Returns:
     -------
-    float: recall@k
+    np.ndarray: psprecison values
     """
     return _fast_psprecision_with_indices(X_indices, true_labels.indices.astype(np.int64), true_labels.indptr, k, inv_propensities)
 
