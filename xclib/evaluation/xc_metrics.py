@@ -5,7 +5,7 @@ import scipy.sparse as sp
 import numpy as np
 from xclib.utils.sparse import topk, binarize, generate_gt_smat
 import warnings
-
+import numba as nb
 
 __author__ = 'X'
 
@@ -520,17 +520,18 @@ def auc(X, true_labels, k, sorted=False):
     eval_flags = _eval_flags(indices, true_labels, None)
     return _auc(eval_flags, k)
 
+@nb.njit(parallel=True)
 def _fast_recall(true_labels_indices, true_labels_indptr, pred_labels_data, pred_labels_indices, pred_labels_indptr, top_k):
-    fracs = []
-    for i in range(len(true_labels_indptr) - 1):
+    fracs = -1 * np.ones((len(true_labels_indptr) - 1, ), dtype=np.float32)
+    for i in nb.prange(len(true_labels_indptr) - 1):
         _true_labels = true_labels_indices[true_labels_indptr[i] : true_labels_indptr[i + 1]]
         _data = pred_labels_data[pred_labels_indptr[i] : pred_labels_indptr[i + 1]]
         _indices = pred_labels_indices[pred_labels_indptr[i] : pred_labels_indptr[i + 1]]
         top_inds = np.argsort(_data)[::-1][:top_k]
         _pred_labels = _indices[top_inds]
         if(len(_true_labels) > 0):
-            fracs.append(len(set(_pred_labels).intersection(set(_true_labels))) / len(_true_labels))
-    return np.mean(np.array(fracs, dtype=np.float32))
+            fracs[i] = len(set(_pred_labels).intersection(set(_true_labels))) / len(_true_labels)
+    return np.mean(fracs[fracs != -1])
 
 def fast_recall(X, true_labels, k=5):
     """
