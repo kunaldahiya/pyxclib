@@ -645,46 +645,9 @@ def fast_precision_with_indices(X_indices, true_labels, k):
         compute psprecision for ints in [1, k]
     Returns:
     -------
-    np.ndarray: precison values
+    np.ndarray: precision values
     """
     return _fast_precision_with_indices(X_indices, true_labels.indices.astype(np.int64), true_labels.indptr, k)
-
-@nb.njit(parallel=True)
-def _fast_psprecision_with_indices(predicted, true_indices, true_indptr, k, inv_propensities):
-    """predicted: predicted indices sorted by distance
-       assume predicted indices are unique in each row 
-    """
-    m = predicted.shape[0]
-    cum_intersections = np.zeros((m, k), dtype=np.float64)
-    cum_total = np.zeros((m, k), dtype=np.float64)
-    for i in nb.prange(predicted.shape[0]):
-        intersection = in1d(predicted[i][:k], np.unique(true_indices[true_indptr[i]: true_indptr[i + 1]]))
-        total = inv_propensities[predicted[i][:k]]
-        intersection = np.multiply(total, intersection.astype(np.float64))
-        
-        cum_intersections[i] = np.cumsum(intersection)
-        cum_total[i] = np.cumsum(total)
-
-    precision = mean_rows(cum_intersections / cum_total)
-    
-    return precision
-
-def fast_psprecision_with_indices(X_indices, true_labels, inv_propensities, k):
-    """
-    Compute propensity weighted precision@k for values 1...k, faster than using `psprecision`
-    Arguments:
-    ----------
-    X_indices: np.ndarray
-        2D numpy array with indices sorted in descending order according to score for each row
-    true_labels: csr_matrix
-        ground truth in sparse format
-    k: int
-        compute psprecision for ints in [1, k]
-    Returns:
-    -------
-    np.ndarray: psprecison values
-    """
-    return _fast_psprecision_with_indices(X_indices, true_labels.indices.astype(np.int64), true_labels.indptr, k, inv_propensities)
 
 @nb.njit(parallel=True)
 def _fast_recall_at_k(true_labels_indices, true_labels_indptr, pred_labels_data, pred_labels_indices, pred_labels_indptr, top_k):
