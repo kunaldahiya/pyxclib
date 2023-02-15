@@ -4,6 +4,7 @@ import numpy as np
 import warnings
 from sklearn.preprocessing import normalize as sk_normalize
 from scipy.special import expit
+import numba as nb
 
 
 def binarize(X, copy=False):
@@ -36,7 +37,48 @@ def rank(X):
     return csr_matrix((ranks, X.indices, X.indptr), shape=X.shape)
 
 
-def topk(X, k, pad_ind, pad_val, return_values=False, dtype='float32'):
+@nb.njit(parallel=True)
+def _topk_nb(data, indices, indptr, k, pad_ind, pad_val):
+    """Get top-k indices and values for a sparse (csr) matrix
+    * Parallel version: uses numba
+    Arguments:
+    ---------
+    data: np.ndarray
+        data / vals of csr array
+    indices: np.ndarray
+        indices of csr array
+    indptr: np.ndarray
+        indptr of csr array
+    k: int
+        values to select
+    pad_ind: int
+        padding index for indices array
+        Useful when number of values in a row are less than k
+    pad_val: int
+        padding index for values array
+        Useful when number of values in a row are less than k
+    Returns:
+    --------
+    ind: np.ndarray
+        topk indices; size=(num_rows, k)
+    val: np.ndarray, optional
+        topk val; size=(num_rows, k)
+    """
+    nr = len(indptr) - 1
+    ind = np.full((nr, k), fill_value=pad_ind, dtype=indices.dtype)
+    val = np.full((nr, k), fill_value=pad_val, dtype=data.dtype)
+
+    for i in nb.prange(nr):
+        s, e = indptr[i], indptr[i+1]
+        num_el = min(k, e - s)
+        temp = np.argsort(data[s: e])[::-1][:num_el]
+        ind[i, :num_el] = indices[s: e][temp]
+        val[i, :num_el] = data[s: e][temp]
+    return ind, val
+
+
+def topk(X, k, pad_ind, pad_val, return_values=False,
+         dtype='float32', use_cython=False):
     """Get top-k indices and values for a sparse (csr) matrix
     Arguments:
     ---------
@@ -52,6 +94,12 @@ def topk(X, k, pad_ind, pad_val, return_values=False, dtype='float32'):
         Useful when number of values in a row are less than k
     return_values: boolean, optional, default=False
         Return topk values or not
+    dtype: str, optional, default='float32'
+        datatype of values
+    use_cython: bool, optional, default=False
+        use cython to compute topk
+        may be helpful when numba isn't working on some machine
+
     Returns:
     --------
     ind: np.ndarray
@@ -59,7 +107,10 @@ def topk(X, k, pad_ind, pad_val, return_values=False, dtype='float32'):
     val: np.ndarray, optional
         topk val; size=(num_rows, k)
     """
-    ind, val = _topk(X.data, X.indices, X.indptr, k, pad_ind, pad_val)
+    if use_cython:
+        ind, val = _topk(X.data, X.indices, X.indptr, k, pad_ind, pad_val)
+    else:
+        ind, val = _topk_nb(X.data, X.indices, X.indptr, k, pad_ind, pad_val)
     if return_values:
         return ind, val.astype(dtype)
     else:
