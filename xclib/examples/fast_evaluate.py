@@ -7,7 +7,7 @@ class XCEvaluator():
     def __init__(self, args):
         super(XCEvaluator, self).__init__()
         self.args = args
-        self.k = 100
+        self.k = 200
         self.top_indices = None
         self.smat = None
         self.tst_X_Y = sp.load_npz(args.tst_lbl_pth)
@@ -49,11 +49,11 @@ class XCEvaluator():
     def compute_metrics(self):
         self.compute_top_indices()
         inv_psp = compute_inv_propesity(self.trn_X_Y, self.A, self.B)
-        precs = precision(self.smat, self.tst_X_Y, self.k)
+        precs = precision(self.smat, self.tst_X_Y, 100)
         print("Finished Precision computation")
-        recalls = recall(self.smat, self.tst_X_Y, self.k)
+        recalls = recall(self.smat, self.tst_X_Y, 100)
         print("Finished Recall computation")
-        psps = psprecision(self.smat, self.tst_X_Y, inv_psp, k=self.k) 
+        psps = psprecision(self.smat, self.tst_X_Y, inv_psp, k=100) 
         print("Finished PSP computation")
         # @ GT metrics
         recall_at_gt, micro_recall_at_gt = calc_gt_metrics(self.top_indices, self.tst_X_Y, self.k)
