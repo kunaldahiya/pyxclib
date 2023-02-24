@@ -616,40 +616,6 @@ class Metrices(Metrics):
             category=FutureWarning)
         super().__init__(true_labels, inv_propensity_scores, remove_invalid)
 
-
-@nb.njit(parallel=True)
-def _fast_precision_with_indices(predicted, true_indices, true_indptr, k):
-    """predicted: predicted indices sorted by distance
-       assume predicted indices are unique in each row 
-    """
-    m = predicted.shape[0]
-    cum_intersections = np.zeros((m, k), dtype=np.float64)
-    for i in nb.prange(predicted.shape[0]):
-        intersection = in1d(predicted[i][:k], np.unique(true_indices[true_indptr[i]: true_indptr[i + 1]]))
-        cum_intersections[i] = np.cumsum(intersection)
-
-    precision = mean_rows(np.multiply(cum_intersections, 1 / (np.arange(k) + 1)))
-    
-    return precision
-
-def fast_precision_with_indices(X_indices, true_labels, k):
-    """
-    Compute precision@k for values 1...k, faster than using `precision`
-    Arguments:
-    ----------
-    X_indices: np.ndarray
-        2D numpy array with indices sorted in descending order according to score for each row
-    true_labels: csr_matrix
-        ground truth in sparse format
-    k: int
-        compute psprecision for ints in [1, k]
-    Returns:
-    -------
-    np.ndarray: precision values
-    """
-    return _fast_precision_with_indices(X_indices, true_labels.indices.astype(np.int64), true_labels.indptr, k)
-
-
 @nb.njit(parallel=True)
 def _fast_recall_with_indices(pred_indices, true_indices, true_indptr, k):
     m = pred_indices.shape[0]
@@ -682,7 +648,7 @@ def fast_recall_with_indices(X_indices, true_labels, k):
     return _fast_recall_with_indices(X_indices, true_labels.indices.astype(np.int64), true_labels.indptr, k)
 
 @nb.njit(parallel=True)
-def restict_preds_for_gt_calc(pred_indices, num_gt, k=100):
+def restict_preds_for_gt_calc(pred_indices, num_gt, k):
     """
     Returns top min(GT, k) indices for each data point
     Arguments:
@@ -705,7 +671,7 @@ def restict_preds_for_gt_calc(pred_indices, num_gt, k=100):
         restricted_preds[doc_indx][: restrict_indx] = pred_indices[doc_indx][:restrict_indx]
     return restricted_preds
 
-def calc_gt_metrics(pred_indices, true_labels, k=100):
+def calc_gt_metrics(pred_indices, true_labels, k):
     """
     Returns MicroRecall@GT, Recall@GT
     Arguments:
@@ -721,11 +687,10 @@ def calc_gt_metrics(pred_indices, true_labels, k=100):
     (R@GT, MicroR@GT)
     """
     num_gt = np.array([true_labels[i].nnz for i in range(true_labels.shape[0])])
-    top_gt_indices = restict_preds_for_gt_calc(pred_indices, num_gt)
+    top_gt_indices = restict_preds_for_gt_calc(pred_indices, num_gt, k)
     
     recall_at_gt, micro_recall_at_gt = fast_recall_with_indices(top_gt_indices, true_labels, k)
     return recall_at_gt[-1], micro_recall_at_gt[-1]
-
 @nb.njit(parallel=True)
 def _fast_recall_at_k(true_labels_indices, true_labels_indptr, pred_labels_data, pred_labels_indices, pred_labels_indptr, top_k):
     fracs = -1 * np.ones((len(true_labels_indptr) - 1, ), dtype=np.float32)

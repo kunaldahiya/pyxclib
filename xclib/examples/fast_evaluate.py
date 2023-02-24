@@ -1,6 +1,6 @@
 import argparse
 import numpy as np
-from xclib.evaluation.xc_metrics import _get_topk, fast_precision_with_indices, fast_recall_with_indices, psprecision, compute_inv_propesity, calc_gt_metrics
+from xclib.evaluation.xc_metrics import _get_topk, precision, recall, psprecision, compute_inv_propesity, calc_gt_metrics
 import scipy.sparse as sp
 
 class XCEvaluator():
@@ -22,7 +22,6 @@ class XCEvaluator():
         num_docs, num_labels = self.tst_X_Y.shape
         offsets = np.arange(self.k)
         padded_indices = np.where(self.top_indices == num_labels)
-        print(f"len padded indices: {padded_indices[0].shape}")
         offset_arr = np.zeros((num_docs, self.k))
         
         offset_arr[padded_indices] = 1
@@ -36,14 +35,13 @@ class XCEvaluator():
             self.top_indices = _get_topk(self.smat, k = self.k)
         self.process_indices()
     
-    def build_metrics_dict(self, precs, recalls, micro_recalls, psps, recall_at_gt, micro_recall_at_gt):
+    def build_metrics_dict(self, precs, recalls, psps, recall_at_gt, micro_recall_at_gt):
         ks = [1, 3, 5, 10, 50, 100]
         metrics_dict = {}
         for k in ks:
             metrics_dict[f'P@{k}'] = f'{precs[k - 1] :.5f}'
             metrics_dict[f'R@{k}'] = f'{recalls[k - 1] :.5f}'
             metrics_dict[f'PSP@{k}'] = f'{psps[k - 1] :.5f}'
-            metrics_dict[f'MicroR@{k}'] = f'{micro_recalls[k - 1] :.5f}'
         metrics_dict['R@GT'] = f'{recall_at_gt :.5f}'
         metrics_dict['MicroR@GT'] = f'{micro_recall_at_gt :.5f}'
         return metrics_dict
@@ -51,16 +49,14 @@ class XCEvaluator():
     def compute_metrics(self):
         self.compute_top_indices()
         inv_psp = compute_inv_propesity(self.trn_X_Y, self.A, self.B)
-        precs = fast_precision_with_indices(self.top_indices, self.tst_X_Y, self.k)
-        print("Finished prec computation")
-        recalls, micro_recalls = fast_recall_with_indices(self.top_indices, self.tst_X_Y, self.k)
-        print("Finished Recall computation")
+        precs = precision(self.top_indices, self.tst_X_Y, self.k)
+        recalls = recall(self.top_indices, self.tst_X_Y, self.k)
         psps = psprecision(self.smat, self.tst_X_Y, inv_psp, k=self.k) 
         print("Finished PSP computation")
         # @ GT metrics
         recall_at_gt, micro_recall_at_gt = calc_gt_metrics(self.top_indices, self.tst_X_Y, self.k)
         print("Finished @ GT metrics computation")
-        metrics_dict = self.build_metrics_dict(precs, recalls, micro_recalls, psps, recall_at_gt, micro_recall_at_gt)
+        metrics_dict = self.build_metrics_dict(precs, recalls, psps, recall_at_gt, micro_recall_at_gt)
         
         for metric_name, metric_val in metrics_dict.items():
             print(metric_name, float(metric_val) * 100)
