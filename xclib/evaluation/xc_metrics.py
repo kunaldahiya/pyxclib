@@ -94,7 +94,7 @@ def _broad_cast(mat, like):
             "Unknown type; please pass csr_matrix, np.ndarray or dict.")
 
 
-def _get_topk(X, pad_indx=0, k=5, sorted=False):
+def _get_topk(X, pad_indx=0, k=5, sorted=False, use_cython=False):
     """
     Get top-k indices (row-wise); Support for
     * csr_matirx
@@ -105,7 +105,8 @@ def _get_topk(X, pad_indx=0, k=5, sorted=False):
         X = X.tocsr()
         X.sort_indices()
         pad_indx = X.shape[1]
-        indices = topk(X, k, pad_indx, 0, return_values=False)
+        indices = topk(
+            X, k, pad_indx, 0, return_values=False, use_cython=use_cython)
     elif type(X) == np.ndarray:
         # indices are given
         assert X.shape[1] >= k, "Number of elements in X is < {}".format(k)
@@ -181,17 +182,18 @@ def compute_inv_propesity(labels, A, B):
     return np.ravel(wts)
 
 
-def _setup_metric(X, true_labels, inv_psp=None, k=5, sorted=False):
+def _setup_metric(X, true_labels, inv_psp=None,
+                  k=5, sorted=False, use_cython=False):
     assert compatible_shapes(X, true_labels), \
         "ground truth and prediction matrices must have same shape."
     num_instances, num_labels = true_labels.shape
-    indices = _get_topk(X, num_labels, k, sorted)
+    indices = _get_topk(X, num_labels, k, sorted, use_cython)
     ps_indices = None
     if inv_psp is not None:
         _mat = sp.spdiags(inv_psp, diags=0,
                           m=num_labels, n=num_labels)
         _psp_wtd = _broad_cast(_mat.dot(true_labels.T).T, true_labels)
-        ps_indices = _get_topk(_psp_wtd, num_labels, k)
+        ps_indices = _get_topk(_psp_wtd, num_labels, k, False, use_cython)
         inv_psp = np.hstack([inv_psp, np.zeros((1))])
 
     idx_dtype = true_labels.indices.dtype
@@ -218,7 +220,7 @@ def _eval_flags(indices, true_labels, inv_psp=None):
     return eval_flags
 
 
-def precision(X, true_labels, k=5, sorted=False):
+def precision(X, true_labels, k=5, sorted=False, use_cython=False):
     """
     Compute precision@k for 1-k
 
@@ -241,18 +243,22 @@ def precision(X, true_labels, k=5, sorted=False):
         * used when X is of type dict or np.ndarray (of indices)
         * shape is not checked is X are np.ndarray
         * must be set to true when X are np.ndarray (of indices)
+    use_cython: boolean, optional, default=False
+        whether to use cython version to find top-k element
+        * defaults to numba version
+        * may be useful when numba version fails on a system
 
     Returns:
     -------
     np.ndarray: precision values for 1-k
     """
     indices, true_labels, _, _ = _setup_metric(
-        X, true_labels, k=k, sorted=sorted)
+        X, true_labels, k=k, sorted=sorted, use_cython=use_cython)
     eval_flags = _eval_flags(indices, true_labels, None)
     return _precision(eval_flags, k)
 
 
-def psprecision(X, true_labels, inv_psp, k=5, sorted=False):
+def psprecision(X, true_labels, inv_psp, k=5, sorted=False, use_cython=False):
     """
     Compute propensity scored precision@k for 1-k
 
@@ -276,13 +282,17 @@ def psprecision(X, true_labels, inv_psp, k=5, sorted=False):
         * used when X is of type dict or np.ndarray (of indices)
         * shape is not checked is X are np.ndarray
         * must be set to true when X are np.ndarray (of indices)
+    use_cython: boolean, optional, default=False
+        whether to use cython version to find top-k element
+        * defaults to numba version
+        * may be useful when numba version fails on a system
 
     Returns:
     -------
     np.ndarray: propensity scored precision values for 1-k
     """
     indices, true_labels, ps_indices, inv_psp = _setup_metric(
-        X, true_labels, inv_psp, k=k, sorted=sorted)
+        X, true_labels, inv_psp, k=k, sorted=sorted, use_cython=use_cython)
     eval_flags = _eval_flags(indices, true_labels, inv_psp)
     ps_eval_flags = _eval_flags(ps_indices, true_labels, inv_psp)
     return _precision(eval_flags, k)/_precision(ps_eval_flags, k)
@@ -296,7 +306,7 @@ def _precision(eval_flags, k=5):
     return np.ravel(precision)
 
 
-def ndcg(X, true_labels, k=5, sorted=False):
+def ndcg(X, true_labels, k=5, sorted=False, use_cython=False):
     """
     Compute nDCG@k for 1-k
 
@@ -318,6 +328,10 @@ def ndcg(X, true_labels, k=5, sorted=False):
         * used when X is of type dict or np.ndarray (of indices)
         * shape is not checked is X are np.ndarray
         * must be set to true when X are np.ndarray (of indices)
+    use_cython: boolean, optional, default=False
+        whether to use cython version to find top-k element
+        * defaults to numba version
+        * may be useful when numba version fails on a system
 
 
     Returns:
@@ -325,7 +339,7 @@ def ndcg(X, true_labels, k=5, sorted=False):
     np.ndarray: nDCG values for 1-k
     """
     indices, true_labels, _, _ = _setup_metric(
-        X, true_labels, k=k, sorted=sorted)
+        X, true_labels, k=k, sorted=sorted, use_cython=use_cython)
     eval_flags = _eval_flags(indices, true_labels, None)
     _total_pos = np.asarray(
         true_labels.sum(axis=1),
@@ -336,7 +350,7 @@ def ndcg(X, true_labels, k=5, sorted=False):
     return _ndcg(eval_flags, n, k)
 
 
-def psndcg(X, true_labels, inv_psp, k=5, sorted=False):
+def psndcg(X, true_labels, inv_psp, k=5, sorted=False, use_cython=False):
     """
     Compute propensity scored nDCG@k for 1-k
 
@@ -360,6 +374,10 @@ def psndcg(X, true_labels, inv_psp, k=5, sorted=False):
         * used when X is of type dict or np.ndarray (of indices)
         * shape is not checked is X are np.ndarray
         * must be set to true when X are np.ndarray (of indices)
+    use_cython: boolean, optional, default=False
+        whether to use cython version to find top-k element
+        * defaults to numba version
+        * may be useful when numba version fails on a system
 
 
     Returns:
@@ -367,7 +385,7 @@ def psndcg(X, true_labels, inv_psp, k=5, sorted=False):
     np.ndarray: propensity scored nDCG values for 1-k
     """
     indices, true_labels, ps_indices, inv_psp = _setup_metric(
-        X, true_labels, inv_psp, k=k, sorted=sorted)
+        X, true_labels, inv_psp, k=k, sorted=sorted, use_cython=use_cython)
     eval_flags = _eval_flags(indices, true_labels, inv_psp)
     ps_eval_flags = _eval_flags(ps_indices, true_labels, inv_psp)
     _total_pos = np.asarray(
@@ -393,7 +411,7 @@ def _ndcg(eval_flags, n, k=5):
     return np.ravel(ndcg)
 
 
-def recall(X, true_labels, k=5, sorted=False):
+def recall(X, true_labels, k=5, sorted=False, use_cython=False):
     """
     Compute recall@k for 1-k
 
@@ -415,6 +433,10 @@ def recall(X, true_labels, k=5, sorted=False):
         * used when X is of type dict or np.ndarray (of indices)
         * shape is not checked is X are np.ndarray
         * must be set to true when X are np.ndarray (of indices)
+    use_cython: boolean, optional, default=False
+        whether to use cython version to find top-k element
+        * defaults to numba version
+        * may be useful when numba version fails on a system
 
 
     Returns:
@@ -422,7 +444,7 @@ def recall(X, true_labels, k=5, sorted=False):
     np.ndarray: recall values for 1-k
     """
     indices, true_labels, _, _ = _setup_metric(
-        X, true_labels, k=k, sorted=sorted)
+        X, true_labels, k=k, sorted=sorted, use_cython=use_cython)
     deno = true_labels.sum(axis=1)
     deno[deno == 0] = 1
     deno = 1/deno
@@ -430,7 +452,7 @@ def recall(X, true_labels, k=5, sorted=False):
     return _recall(eval_flags, deno, k)
 
 
-def psrecall(X, true_labels, inv_psp, k=5, sorted=False):
+def psrecall(X, true_labels, inv_psp, k=5, sorted=False, use_cython=False):
     """
     Compute propensity scored recall@k for 1-k
 
@@ -454,6 +476,10 @@ def psrecall(X, true_labels, inv_psp, k=5, sorted=False):
         * used when X is of type dict or np.ndarray (of indices)
         * shape is not checked is X are np.ndarray
         * must be set to true when X are np.ndarray (of indices)
+    use_cython: boolean, optional, default=False
+        whether to use cython version to find top-k element
+        * defaults to numba version
+        * may be useful when numba version fails on a system
 
 
     Returns:
@@ -461,7 +487,7 @@ def psrecall(X, true_labels, inv_psp, k=5, sorted=False):
     np.ndarray: propensity scored recall values for 1-k
     """
     indices, true_labels, ps_indices, inv_psp = _setup_metric(
-        X, true_labels, inv_psp, k=k, sorted=sorted)
+        X, true_labels, inv_psp, k=k, sorted=sorted, use_cython=use_cython)
     deno = true_labels.sum(axis=1)
     deno[deno == 0] = 1
     deno = 1/deno
@@ -486,7 +512,7 @@ def _auc(X, k):
     return np.mean(point_auc)
 
 
-def auc(X, true_labels, k, sorted=False):
+def auc(X, true_labels, k, sorted=False, use_cython=False):
     """
     Compute AUC score
 
@@ -508,6 +534,10 @@ def auc(X, true_labels, k, sorted=False):
         * used when X is of type dict or np.ndarray (of indices)
         * shape is not checked is X are np.ndarray
         * must be set to true when X are np.ndarray (of indices)
+    use_cython: boolean, optional, default=False
+        whether to use cython version to find top-k element
+        * defaults to numba version
+        * may be useful when numba version fails on a system
 
 
     Returns:
@@ -515,7 +545,7 @@ def auc(X, true_labels, k, sorted=False):
     np.ndarray: auc score
     """
     indices, true_labels, _, _ = _setup_metric(
-        X, true_labels, k=k, sorted=sorted)
+        X, true_labels, k=k, sorted=sorted, use_cython=use_cython)
     eval_flags = _eval_flags(indices, true_labels, None)
     return _auc(eval_flags, k)
 
@@ -553,7 +583,7 @@ class Metrics(object):
         if inv_psp is not None:
             self.inv_psp = np.ravel(inv_psp)
 
-    def eval(self, pred_labels, K=5, sorted=False):
+    def eval(self, pred_labels, K=5, sorted=False, use_cython=False):
         """
         Compute values
 
@@ -568,12 +598,15 @@ class Metrics(object):
             * {'indices': np.ndarray, 'scores': np.ndarray}
         k: int, optional; default=5
             compute values till k
-        sorted: boolean, optional, default=5
+        sorted: boolean, optional, default=False
             whether pred_labels is already sorted (will skip sorting)
             * used when pred_labels is of type dict or np.ndarray (of indices)
             * shape is not checked is pred_labels are np.ndarray
             * must be set to true when pred_labels are np.ndarray (of indices)
-
+        use_cython: boolean, optional, default=False
+            whether to use cython version to find top-k element
+            * defaults to numba version
+            * may be useful when numba version fails on a system
         Returns:
         -------
         list: vanilla metrics if inv_psp is None
@@ -590,7 +623,8 @@ class Metrics(object):
             "Shapes must be compatible for ground truth and predictions"
         indices, true_labels, ps_indices, inv_psp = _setup_metric(
             pred_labels, self.true_labels,
-            self.inv_psp, k=K, sorted=sorted)
+            self.inv_psp, k=K, sorted=sorted,
+            use_cython=use_cython)
         _total_pos = np.asarray(
             true_labels.sum(axis=1),
             dtype=np.int32)
