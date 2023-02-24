@@ -49,8 +49,10 @@ class XCEvaluator():
     def compute_metrics(self):
         self.compute_top_indices()
         inv_psp = compute_inv_propesity(self.trn_X_Y, self.A, self.B)
-        precs = precision(self.top_indices, self.tst_X_Y, self.k)
-        recalls = recall(self.top_indices, self.tst_X_Y, self.k)
+        precs = precision(self.smat, self.tst_X_Y, self.k)
+        print("Finished Precision computation")
+        recalls = recall(self.smat, self.tst_X_Y, self.k)
+        print("Finished Recall computation")
         psps = psprecision(self.smat, self.tst_X_Y, inv_psp, k=self.k) 
         print("Finished PSP computation")
         # @ GT metrics
