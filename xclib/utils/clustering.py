@@ -123,7 +123,7 @@ def b_kmeans_sparse(X, index, metric='cosine', tol=1e-4, leakage=None):
         cluster = np.random.randint(
             low=0, high=X.shape[0], size=(2))
     _centeroids = X[cluster].todense()
-    _similarity = _sdist(X, _centeroids,
+    _similarity = _sdist(X.A, _centeroids.A,
                          metric=metric, norm='l2')
     old_sim, new_sim = -1000000, -2
     while new_sim - old_sim >= tol:
@@ -133,7 +133,7 @@ def b_kmeans_sparse(X, index, metric='cosine', tol=1e-4, leakage=None):
             X[x, :].mean(
                 axis=0) for x in clustered_lbs
         ])
-        _similarity = _sdist(X, _centeroids,
+        _similarity = _sdist(X.A, _centeroids.A,
                              metric=metric, norm='l2')
         old_sim, new_sim = new_sim, np.sum(
             [np.sum(
