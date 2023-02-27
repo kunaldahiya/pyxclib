@@ -651,40 +651,9 @@ class Metrices(Metrics):
         super().__init__(true_labels, inv_propensity_scores, remove_invalid)
 
 @nb.njit(parallel=True)
-def _fast_recall_with_indices(pred_indices, true_indices, true_indptr, k):
-    m = pred_indices.shape[0]
-    cum_intersections = np.zeros((m, k), dtype=np.float64)
-    gt_cardinality = np.zeros((m, 1), dtype= np.float64)
-    for i in nb.prange(pred_indices.shape[0]):
-        intersection = in1d(pred_indices[i][:k], np.unique(true_indices[true_indptr[i]: true_indptr[i + 1]]))
-        cum_intersections[i] = np.cumsum(intersection)
-        gt_cardinality[i, 0] = true_indptr[i + 1] - true_indptr[i]
-
-    recall = mean_rows(np.multiply(cum_intersections, 1 / gt_cardinality))
-    micro_recall = np.sum(cum_intersections, axis = 0) / np.sum(gt_cardinality)
-    return recall, micro_recall
-
-def fast_recall_with_indices(X_indices, true_labels, k):
+def restict_preds_for_gt_calc(pred_indices, num_gt, pad_val):
     """
-    Compute recall@k, microR@k for values 1...k, faster than using `recall`
-    Arguments:
-    ----------
-    X_indices: np.ndarray
-        2D numpy array with indices sorted in descending order according to score for each row
-    true_labels: csr_matrix
-        ground truth in sparse format
-    k: int
-        compute psprecision for ints in [1, k]
-    Returns:
-    -------
-    np.ndarray: recall values
-    """
-    return _fast_recall_with_indices(X_indices, true_labels.indices.astype(np.int64), true_labels.indptr, k)
-
-@nb.njit(parallel=True)
-def restict_preds_for_gt_calc(pred_indices, num_gt, k):
-    """
-    Returns top min(GT, k) indices for each data point
+    Returns top GT indices for each data point
     Arguments:
     ----------
     X_indices: np.ndarray
@@ -698,35 +667,139 @@ def restict_preds_for_gt_calc(pred_indices, num_gt, k):
     np.ndarray:  top min(GT, k) indices for each data point
     """
     num_docs = pred_indices.shape[0]
-    high_lim = 100000000
-    restricted_preds = pred_indices + high_lim # ensures that indices that are not overwritten will not intersect with any GT
+    restricted_preds = pred_indices + pad_val # ensures that indices that are not overwritten will not intersect with any GT
+    max_preds = pred_indices.shape[1]
     for doc_indx in nb.prange(num_docs):
-        restrict_indx = min(k, num_gt[doc_indx])
+        restrict_indx = min(max_preds, num_gt[doc_indx])
         restricted_preds[doc_indx][: restrict_indx] = pred_indices[doc_indx][:restrict_indx]
     return restricted_preds
 
-def calc_gt_metrics(pred_indices, true_labels, k):
+@nb.njit(parallel=True)
+def _micro_recall_at_gt(pred_indices, true_indices, true_indptr):
+    m = pred_indices.shape[0]
+    intersections = np.zeros(m, dtype=np.float64)
+    gt_cardinality = np.zeros(m, dtype= np.float64)
+    for i in nb.prange(pred_indices.shape[0]):
+        intersections[i] = np.sum(in1d(pred_indices[i], np.unique(true_indices[true_indptr[i]: true_indptr[i + 1]])))
+        gt_cardinality[i] = true_indptr[i + 1] - true_indptr[i]
+
+    micro_recall = np.sum(intersections) / np.sum(gt_cardinality)
+    return micro_recall
+
+@nb.njit(parallel=True)
+def _recall_at_gt(pred_indices, true_indices, true_indptr):
+    m = pred_indices.shape[0]
+    intersections = np.zeros(m, dtype=np.float64)
+    gt_cardinality = np.zeros(m, dtype= np.float64)
+    for i in nb.prange(pred_indices.shape[0]):
+        intersections[i] = np.sum(in1d(pred_indices[i], np.unique(true_indices[true_indptr[i]: true_indptr[i + 1]])))
+        gt_cardinality[i] = true_indptr[i + 1] - true_indptr[i]
+
+    recall = np.mean(np.multiply(intersections, 1 / gt_cardinality))
+    return recall
+
+
+def process_indices(pred_indices, true_labels, max_preds):
+    '''
+    Ensure that there are no duplicate indices for each data point _get_topk will pad with the index num_labels for remaining slots, this will be problematic in in1d later
+    '''
+    num_docs, num_labels = true_labels.shape
+    offsets = np.arange(max_preds) + 1
+    padded_indices = np.where(pred_indices == num_labels - 1)
+    
+    offset_arr = np.zeros((num_docs, max_preds))
+
+    offset_arr[padded_indices] = 1
+    pred_indices = pred_indices + offset_arr * offsets
+    return pred_indices
+
+
+def micro_recall_at_gt(X, true_labels, pad_val, sorted=False, use_cython=False):
     """
-    Returns MicroRecall@GT, Recall@GT
+    Compute MicroRecall@GT 
+
     Arguments:
     ----------
-    X_indices: np.ndarray
-        2D numpy array with indices sorted in descending order according to score for each row
-    true_labels: csr_matrix
-        ground truth in sparse format
-    k: int
-        max number of preds to consider
+    X: csr_matrix, np.ndarray
+        * csr_matrix: csr_matrix with nnz at relevant places
+        * np.ndarray (float): scores for each label
+            User must ensure shape is fine
+        * np.ndarray (int): top indices (in sorted order)
+            User must ensure shape is fine
+        * {'indices': np.ndarray, 'scores': np.ndarray}
+    true_labels: csr_matrix or np.ndarray
+        ground truth in sparse or dense format
+    sorted: boolean, optional, default=False
+        whether X is already sorted (will skip sorting)
+        * used when X is of type dict or np.ndarray (of indices)
+        * shape is not checked is X are np.ndarray
+        * must be set to true when X are np.ndarray (of indices)
+    use_cython: boolean, optional, default=False
+        whether to use cython version to find top-k element
+        * defaults to numba version
+        * may be useful when numba version fails on a system
+
     Returns:
     -------
-    (R@GT, MicroR@GT)
+    np.float32: MicroRecall@GT
     """
-    num_gt = np.array([true_labels[i].nnz for i in range(true_labels.shape[0])])
-    top_gt_indices = restict_preds_for_gt_calc(pred_indices, num_gt, k)
-    
-    recall_at_gt, micro_recall_at_gt = fast_recall_with_indices(top_gt_indices, true_labels, k)
-    return recall_at_gt[-1], micro_recall_at_gt[-1]
+    if sp.issparse(X):
+        max_preds = np.max(X.getnnz(axis = 1))
+    else: # numpy array
+        max_preds = X.shape[1]
+        
+    indices, true_labels, _, _ = _setup_metric(
+        X, true_labels, k=max_preds, sorted=sorted, use_cython=use_cython)
+    num_gt = true_labels.getnnz(axis = 1)
+    indices = process_indices(indices, true_labels, max_preds)
+    top_gt_indices = restict_preds_for_gt_calc(indices, num_gt, pad_val)
+    print("HII")
+    return _micro_recall_at_gt(top_gt_indices, true_labels.indices.astype(np.int64), true_labels.indptr)
+
+def recall_at_gt(X, true_labels, pad_val, sorted=False, use_cython=False):
+    """
+    Compute Recall@GT 
+
+    Arguments:
+    ----------
+    X: csr_matrix, np.ndarray
+        * csr_matrix: csr_matrix with nnz at relevant places
+        * np.ndarray (float): scores for each label
+            User must ensure shape is fine
+        * np.ndarray (int): top indices (in sorted order)
+            User must ensure shape is fine
+        * {'indices': np.ndarray, 'scores': np.ndarray}
+    true_labels: csr_matrix or np.ndarray
+        ground truth in sparse or dense format
+    sorted: boolean, optional, default=False
+        whether X is already sorted (will skip sorting)
+        * used when X is of type dict or np.ndarray (of indices)
+        * shape is not checked is X are np.ndarray
+        * must be set to true when X are np.ndarray (of indices)
+    use_cython: boolean, optional, default=False
+        whether to use cython version to find top-k element
+        * defaults to numba version
+        * may be useful when numba version fails on a system
+
+    Returns:
+    -------
+    np.float32: Recall@GT
+    """
+    if sp.issparse(X):
+        max_preds = np.max(X.getnnz(axis = 1))
+    else: # numpy array
+        max_preds = X.shape[1]
+    print("Max preds: ", max_preds)
+    indices, true_labels, _, _ = _setup_metric(
+        X, true_labels, k=max_preds, sorted=sorted, use_cython=use_cython)
+    num_gt = true_labels.getnnz(axis = 1)
+    indices = process_indices(indices, true_labels, max_preds)
+    top_gt_indices = restict_preds_for_gt_calc(indices, num_gt, pad_val)
+    print(top_gt_indices[0])
+    return _recall_at_gt(top_gt_indices, true_labels.indices.astype(np.int64), true_labels.indptr)
+
 @nb.njit(parallel=True)
-def _fast_recall_at_k(true_labels_indices, true_labels_indptr, pred_labels_data, pred_labels_indices, pred_labels_indptr, top_k):
+def _recall_at_k(true_labels_indices, true_labels_indptr, pred_labels_data, pred_labels_indices, pred_labels_indptr, top_k):
     fracs = -1 * np.ones((len(true_labels_indptr) - 1, ), dtype=np.float32)
     for i in nb.prange(len(true_labels_indptr) - 1):
         _true_labels = true_labels_indices[true_labels_indptr[i] : true_labels_indptr[i + 1]]
@@ -738,7 +811,7 @@ def _fast_recall_at_k(true_labels_indices, true_labels_indptr, pred_labels_data,
             fracs[i] = len(set(_pred_labels).intersection(set(_true_labels))) / len(_true_labels)
     return np.mean(fracs[fracs != -1])
 
-def fast_recall_k(X, true_labels, k):
+def recall_at_k(X, true_labels, k):
     """
     Compute recall@k, faster than using `recall`
     Arguments:
@@ -753,7 +826,7 @@ def fast_recall_k(X, true_labels, k):
     -------
     float: recall@k
     """
-    return _fast_recall_at_k(true_labels.indices.astype(np.int64), true_labels.indptr, 
+    return _recall_at_k(true_labels.indices.astype(np.int64), true_labels.indptr, 
     X.data, X.indices.astype(np.int64), X.indptr, k)
 
 @nb.njit(parallel=True)
