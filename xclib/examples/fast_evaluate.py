@@ -1,6 +1,6 @@
 import argparse
 import numpy as np
-from xclib.evaluation.xc_metrics import _get_topk, precision, recall, psprecision, compute_inv_propesity, recall_at_gt, micro_recall_at_gt
+from xclib.evaluation.xc_metrics import precision, recall, psprecision, compute_inv_propesity, recall_at_gt, micro_recall_at_gt, ndcg
 import scipy.sparse as sp
 
 class XCEvaluator():
@@ -15,13 +15,14 @@ class XCEvaluator():
         self.A = args.A
         self.B = args.B
     
-    def build_metrics_dict(self, precs, recalls, psps, recall_at_gt, micro_recall_at_gt):
+    def build_metrics_dict(self, precs, recalls, psps, ndcgs, recall_at_gt, micro_recall_at_gt):
         ks = [1, 3, 5, 10, 50, 100]
         metrics_dict = {}
         for k in ks:
             metrics_dict[f'P@{k}'] = f'{precs[k - 1] :.5f}'
             metrics_dict[f'R@{k}'] = f'{recalls[k - 1] :.5f}'
             metrics_dict[f'PSP@{k}'] = f'{psps[k - 1] :.5f}'
+            metrics_dict[f'nDCG@{k}'] = f'{ndcgs[k - 1]:.5f}'
         metrics_dict['R@GT'] = f'{recall_at_gt :.5f}'
         metrics_dict['MicroR@GT'] = f'{micro_recall_at_gt :.5f}'
         return metrics_dict
@@ -35,10 +36,12 @@ class XCEvaluator():
         print("Finished Recall computation")
         psps = psprecision(self.smat, self.tst_X_Y, inv_psp, self.k) 
         print("Finished PSP computation")
+        ndcgs = ndcg(self.smat, self.tst_X_Y, self.k)
+        print("Finished nDCG computation")
         rec_at_gt = recall_at_gt(self.smat, self.tst_X_Y, pad_val=self.pad_val)
         micro_rec_at_gt = micro_recall_at_gt(self.smat, self.tst_X_Y, pad_val=self.pad_val)
         print("Finished @ GT metrics computation")
-        metrics_dict = self.build_metrics_dict(precs, recalls, psps, rec_at_gt, micro_rec_at_gt)
+        metrics_dict = self.build_metrics_dict(precs, recalls, psps, ndcgs, rec_at_gt, micro_rec_at_gt)
         
         for metric_name, metric_val in metrics_dict.items():
             print(metric_name, float(metric_val) * 100)

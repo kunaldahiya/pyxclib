@@ -753,7 +753,6 @@ def micro_recall_at_gt(X, true_labels, pad_val, sorted=False, use_cython=False):
     num_gt = true_labels.getnnz(axis = 1)
     indices = process_indices(indices, true_labels, max_preds)
     top_gt_indices = restict_preds_for_gt_calc(indices, num_gt, pad_val)
-    print("HII")
     return _micro_recall_at_gt(top_gt_indices, true_labels.indices.astype(np.int64), true_labels.indptr)
 
 def recall_at_gt(X, true_labels, pad_val, sorted=False, use_cython=False):
@@ -789,13 +788,11 @@ def recall_at_gt(X, true_labels, pad_val, sorted=False, use_cython=False):
         max_preds = np.max(X.getnnz(axis = 1))
     else: # numpy array
         max_preds = X.shape[1]
-    print("Max preds: ", max_preds)
     indices, true_labels, _, _ = _setup_metric(
         X, true_labels, k=max_preds, sorted=sorted, use_cython=use_cython)
     num_gt = true_labels.getnnz(axis = 1)
     indices = process_indices(indices, true_labels, max_preds)
     top_gt_indices = restict_preds_for_gt_calc(indices, num_gt, pad_val)
-    print(top_gt_indices[0])
     return _recall_at_gt(top_gt_indices, true_labels.indices.astype(np.int64), true_labels.indptr)
 
 @nb.njit(parallel=True)
@@ -831,7 +828,6 @@ def recall_at_k(X, true_labels, k):
 
 @nb.njit(parallel=True)
 def _recall_with_indices(true_labels_indices, true_labels_indptr, pred_indices):
-    print(pred_indices.shape)
     fracs = np.zeros((pred_indices.shape[0],), dtype=np.float32)
     for i in nb.prange(len(true_labels_indptr) - 1):
         _true_labels = true_labels_indices[true_labels_indptr[i] : true_labels_indptr[i + 1]]
