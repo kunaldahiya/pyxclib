@@ -694,7 +694,7 @@ def _recall_at_gt(pred_indices, true_indices, true_indptr):
     for i in nb.prange(pred_indices.shape[0]):
         intersections[i] = np.sum(in1d(pred_indices[i], np.unique(true_indices[true_indptr[i]: true_indptr[i + 1]])))
         gt_cardinality[i] = true_indptr[i + 1] - true_indptr[i]
-
+    gt_cardinality[gt_cardinality == 0] = 1
     recall = np.mean(np.multiply(intersections, 1 / gt_cardinality))
     return recall
 
