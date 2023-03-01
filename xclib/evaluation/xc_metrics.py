@@ -3,11 +3,10 @@
 """
 import scipy.sparse as sp
 import numpy as np
-from xclib.utils.sparse import topk, binarize
 import warnings
-
-
-__author__ = 'X'
+from xclib.utils.sparse import topk, binarize
+from xclib.utils.numba_utils import in1d, mean_rows
+import numba as nb
 
 
 def compatible_shapes(x, y):
@@ -650,3 +649,208 @@ class Metrices(Metrics):
             "Metrices() is deprecated; use Metrics().",
             category=FutureWarning)
         super().__init__(true_labels, inv_propensity_scores, remove_invalid)
+
+@nb.njit(parallel=True)
+def restict_preds_for_gt_calc(pred_indices, num_gt, pad_val):
+    """
+    Returns top GT indices for each data point
+    Arguments:
+    ----------
+    X_indices: np.ndarray
+        2D numpy array with indices sorted in descending order according to score for each row
+    num_gt: np.array
+        number of ground truth for each element
+    k: int
+        max number of preds to consider
+    Returns:
+    -------
+    np.ndarray:  top min(GT, k) indices for each data point
+    """
+    num_docs = pred_indices.shape[0]
+    restricted_preds = pred_indices + pad_val # ensures that indices that are not overwritten will not intersect with any GT
+    max_preds = pred_indices.shape[1]
+    for doc_indx in nb.prange(num_docs):
+        restrict_indx = min(max_preds, num_gt[doc_indx])
+        restricted_preds[doc_indx][: restrict_indx] = pred_indices[doc_indx][:restrict_indx]
+    return restricted_preds
+
+@nb.njit(parallel=True)
+def _micro_recall_at_gt(pred_indices, true_indices, true_indptr):
+    m = pred_indices.shape[0]
+    intersections = np.zeros(m, dtype=np.float64)
+    gt_cardinality = np.zeros(m, dtype= np.float64)
+    for i in nb.prange(pred_indices.shape[0]):
+        intersections[i] = np.sum(in1d(pred_indices[i], np.unique(true_indices[true_indptr[i]: true_indptr[i + 1]])))
+        gt_cardinality[i] = true_indptr[i + 1] - true_indptr[i]
+
+    micro_recall = np.sum(intersections) / np.sum(gt_cardinality)
+    return micro_recall
+
+@nb.njit(parallel=True)
+def _recall_at_gt(pred_indices, true_indices, true_indptr):
+    m = pred_indices.shape[0]
+    intersections = np.zeros(m, dtype=np.float64)
+    gt_cardinality = np.zeros(m, dtype= np.float64)
+    for i in nb.prange(pred_indices.shape[0]):
+        intersections[i] = np.sum(in1d(pred_indices[i], np.unique(true_indices[true_indptr[i]: true_indptr[i + 1]])))
+        gt_cardinality[i] = true_indptr[i + 1] - true_indptr[i]
+    gt_cardinality[gt_cardinality == 0] = 1
+    recall = np.mean(np.multiply(intersections, 1 / gt_cardinality))
+    return recall
+
+
+def process_indices(pred_indices, true_labels, max_preds):
+    '''
+    Ensure that there are no duplicate indices for each data point _get_topk will pad with the index num_labels for remaining slots, this will be problematic in in1d later
+    '''
+    num_docs, num_labels = true_labels.shape
+    offsets = np.arange(max_preds) + 1
+    padded_indices = np.where(pred_indices == num_labels - 1)
+    
+    offset_arr = np.zeros((num_docs, max_preds))
+
+    offset_arr[padded_indices] = 1
+    pred_indices = pred_indices + offset_arr * offsets
+    return pred_indices
+
+
+def micro_recall_at_gt(X, true_labels, pad_val, sorted=False, use_cython=False):
+    """
+    Compute MicroRecall@GT 
+
+    Arguments:
+    ----------
+    X: csr_matrix, np.ndarray
+        * csr_matrix: csr_matrix with nnz at relevant places
+        * np.ndarray (float): scores for each label
+            User must ensure shape is fine
+        * np.ndarray (int): top indices (in sorted order)
+            User must ensure shape is fine
+        * {'indices': np.ndarray, 'scores': np.ndarray}
+    true_labels: csr_matrix or np.ndarray
+        ground truth in sparse or dense format
+    sorted: boolean, optional, default=False
+        whether X is already sorted (will skip sorting)
+        * used when X is of type dict or np.ndarray (of indices)
+        * shape is not checked is X are np.ndarray
+        * must be set to true when X are np.ndarray (of indices)
+    use_cython: boolean, optional, default=False
+        whether to use cython version to find top-k element
+        * defaults to numba version
+        * may be useful when numba version fails on a system
+
+    Returns:
+    -------
+    np.float32: MicroRecall@GT
+    """
+    if sp.issparse(X):
+        max_preds = np.max(X.getnnz(axis = 1))
+    else: # numpy array
+        max_preds = X.shape[1]
+        
+    indices, true_labels, _, _ = _setup_metric(
+        X, true_labels, k=max_preds, sorted=sorted, use_cython=use_cython)
+    num_gt = true_labels.getnnz(axis = 1)
+    indices = process_indices(indices, true_labels, max_preds)
+    top_gt_indices = restict_preds_for_gt_calc(indices, num_gt, pad_val)
+    return _micro_recall_at_gt(top_gt_indices, true_labels.indices.astype(np.int64), true_labels.indptr)
+
+def recall_at_gt(X, true_labels, pad_val, sorted=False, use_cython=False):
+    """
+    Compute Recall@GT 
+
+    Arguments:
+    ----------
+    X: csr_matrix, np.ndarray
+        * csr_matrix: csr_matrix with nnz at relevant places
+        * np.ndarray (float): scores for each label
+            User must ensure shape is fine
+        * np.ndarray (int): top indices (in sorted order)
+            User must ensure shape is fine
+        * {'indices': np.ndarray, 'scores': np.ndarray}
+    true_labels: csr_matrix or np.ndarray
+        ground truth in sparse or dense format
+    sorted: boolean, optional, default=False
+        whether X is already sorted (will skip sorting)
+        * used when X is of type dict or np.ndarray (of indices)
+        * shape is not checked is X are np.ndarray
+        * must be set to true when X are np.ndarray (of indices)
+    use_cython: boolean, optional, default=False
+        whether to use cython version to find top-k element
+        * defaults to numba version
+        * may be useful when numba version fails on a system
+
+    Returns:
+    -------
+    np.float32: Recall@GT
+    """
+    if sp.issparse(X):
+        max_preds = np.max(X.getnnz(axis = 1))
+    else: # numpy array
+        max_preds = X.shape[1]
+    indices, true_labels, _, _ = _setup_metric(
+        X, true_labels, k=max_preds, sorted=sorted, use_cython=use_cython)
+    num_gt = true_labels.getnnz(axis = 1)
+    indices = process_indices(indices, true_labels, max_preds)
+    top_gt_indices = restict_preds_for_gt_calc(indices, num_gt, pad_val)
+    return _recall_at_gt(top_gt_indices, true_labels.indices.astype(np.int64), true_labels.indptr)
+
+@nb.njit(parallel=True)
+def _recall_at_k(true_labels_indices, true_labels_indptr, pred_labels_data, pred_labels_indices, pred_labels_indptr, top_k):
+    fracs = -1 * np.ones((len(true_labels_indptr) - 1, ), dtype=np.float32)
+    for i in nb.prange(len(true_labels_indptr) - 1):
+        _true_labels = true_labels_indices[true_labels_indptr[i] : true_labels_indptr[i + 1]]
+        _data = pred_labels_data[pred_labels_indptr[i] : pred_labels_indptr[i + 1]]
+        _indices = pred_labels_indices[pred_labels_indptr[i] : pred_labels_indptr[i + 1]]
+        top_inds = np.argsort(_data)[::-1][:top_k]
+        _pred_labels = _indices[top_inds]
+        if(len(_true_labels) > 0):
+            fracs[i] = len(set(_pred_labels).intersection(set(_true_labels))) / len(_true_labels)
+    return np.mean(fracs[fracs != -1])
+
+def recall_at_k(X, true_labels, k):
+    """
+    Compute recall@k, faster than using `recall`
+    Arguments:
+    ----------
+    X: csr_matrix
+        * csr_matrix: csr_matrix with nnz at relevant places
+    true_labels: csr_matrix
+        ground truth in sparse format
+    k: int
+        compute recall at k
+    Returns:
+    -------
+    float: recall@k
+    """
+    return _recall_at_k(true_labels.indices.astype(np.int64), true_labels.indptr, 
+    X.data, X.indices.astype(np.int64), X.indptr, k)
+
+@nb.njit(parallel=True)
+def _recall_with_indices(true_labels_indices, true_labels_indptr, pred_indices):
+    fracs = np.zeros((pred_indices.shape[0],), dtype=np.float32)
+    for i in nb.prange(len(true_labels_indptr) - 1):
+        _true_labels = true_labels_indices[true_labels_indptr[i] : true_labels_indptr[i + 1]]
+        
+        if(len(_true_labels) > 0):
+            fracs[i] = (len(set(pred_indices[i]).intersection(set(_true_labels))) / len(_true_labels))
+    
+    return np.mean(fracs)
+
+def recall_with_indices(true_labels, pred_indices, pred_data, top_k):
+    n = pred_indices.shape[1]
+    
+    if(pred_data is None):
+        top_k = n
+    
+    print(f"calculating recall@{top_k}")
+    
+    assert n >= top_k, f"k for recall@k[{top_k}] is larger than the predictions being provided[{n}]"
+    
+    if(top_k < n):
+        top_inds = np.argsort(pred_data, axis=1)[::-1][:, :top_k]
+        _indices = pred_indices[np.arange(pred_indices.shape[0])[:, None], top_inds]
+    else:
+        _indices = pred_indices
+
+    return _recall_with_indices(true_labels.indices.astype(np.int64), true_labels.indptr, _indices.astype(np.int64))
