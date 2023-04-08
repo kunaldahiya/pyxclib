@@ -613,7 +613,7 @@ class Metrics(object):
             vanilla and propensity scored metrics, otherwise
         """
         if self.valid_idx is not None:
-            if isinstance(dict):
+            if isinstance(pred_labels, dict):
                 pred_labels['indices'] = pred_labels['indices'][self.valid_idx]
                 pred_labels['scores'] = pred_labels['scores'][self.valid_idx]
             else:
