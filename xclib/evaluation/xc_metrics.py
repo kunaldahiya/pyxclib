@@ -5,7 +5,7 @@ import scipy.sparse as sp
 import numpy as np
 import warnings
 from xclib.utils.sparse import topk, binarize
-from xclib.utils.numba_utils import in1d, mean_rows
+from xclib.utils.numba_utils import in1d
 import numba as nb
 
 
@@ -450,6 +450,50 @@ def recall(X, true_labels, k=5, sorted=False, use_cython=False):
     deno = 1/deno
     eval_flags = _eval_flags(indices, true_labels, None)
     return _recall(eval_flags, deno, k)
+
+
+def hits(X, true_labels, k=5, sorted=False, use_cython=False):
+    """
+    Compute hits@k for 1-k
+
+    Arguments:
+    ----------
+    X: csr_matrix, np.ndarray or dict
+        * csr_matrix: csr_matrix with nnz at relevant places
+        * np.ndarray (float): scores for each label
+            User must ensure shape is fine
+        * np.ndarray (int): top indices (in sorted order)
+            User must ensure shape is fine
+        * {'indices': np.ndarray, 'scores': np.ndarray}
+    true_labels: csr_matrix or np.ndarray
+        ground truth in sparse or dense format
+    k: int, optional (default=5)
+        compute recall till k
+    sorted: boolean, optional, default=False
+        whether X is already sorted (will skip sorting)
+        * used when X is of type dict or np.ndarray (of indices)
+        * shape is not checked is X are np.ndarray
+        * must be set to true when X are np.ndarray (of indices)
+    use_cython: boolean, optional, default=False
+        whether to use cython version to find top-k element
+        * defaults to numba version
+        * may be useful when numba version fails on a system
+
+
+    Returns:
+    -------
+    np.ndarray: hits values for 1-k
+    """
+    indices, true_labels, _, _ = _setup_metric(
+        X, true_labels, k=k, sorted=sorted, use_cython=use_cython)
+    eval_flags = _eval_flags(indices, true_labels, None)
+    return _hits(eval_flags)
+
+
+def _hits(eval_flags):
+    eval_flags = np.clip(np.cumsum(eval_flags, axis=-1), 0, 1)
+    hits = np.mean(eval_flags, axis=0)
+    return np.ravel(hits)
 
 
 def psrecall(X, true_labels, inv_psp, k=5, sorted=False, use_cython=False):
