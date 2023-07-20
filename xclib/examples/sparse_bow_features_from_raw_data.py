@@ -24,7 +24,7 @@ def max_feature_index(trn_labels, tst_labels):
 
 
 def process(trn_fname, tst_fname, encoding='latin',
-            min_df=2, dtype=np.float32):
+            min_df=2, dtype='float32'):
     trn_text, trn_labels = read(trn_fname)
 
     # feature extractor

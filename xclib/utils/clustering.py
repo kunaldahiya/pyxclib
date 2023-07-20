@@ -189,6 +189,11 @@ def cluster_balance(X, clusters, num_clusters, splitter,
     num_threads: int, optional (default=5)
         number of threads to use
         * it'll use a single thread to initial partitions to avoid memory error
+    verbose: boolean, optional (default=True)
+        print time taken etc
+    use_sth_till: int, optional (default=-1)
+        use single thread till these many clusters
+
     Returns:
     --------
     clusters: a list of list
