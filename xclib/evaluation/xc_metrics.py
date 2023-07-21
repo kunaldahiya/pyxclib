@@ -94,6 +94,75 @@ def _broad_cast(mat, like):
             "Unknown type; please pass csr_matrix, np.ndarray or dict.")
 
 
+def _get_topk_sparse(X, pad_indx=0, k=5, use_cython=False):
+    """
+    Get top-k elements when X is a sparse matrix
+    * Support for cython (use_cython=True) and numba (use_cython=False)
+    """
+    X = X.tocsr()
+    X.sort_indices()
+    pad_indx = X.shape[1]
+    indices = topk(
+        X, k, pad_indx, 0, return_values=False, use_cython=use_cython)
+    return indices
+
+
+def _get_topk_array(X, k=5, sorted=False):
+    """
+    Get top-k elements when X is an array
+    X can be an array of:
+        indices: indices of top predictions (must be sorted)
+        values: scores for all labels (like in one-vs-all)
+    """
+    # indices are given
+    assert X.shape[1] >= k, "Number of elements in X is < {}".format(k)
+    if np.issubdtype(X.dtype, np.integer):
+        assert sorted, "sorted must be true with indices"
+        indices = X[:, :k] if X.shape[1] > k else X
+    # values are given
+    elif np.issubdtype(X.dtype, np.floating):
+        _indices = np.argpartition(X, -k)[:, -k:]
+        _scores = np.take_along_axis(
+            X, _indices, axis=-1
+        )
+        indices = np.argsort(-_scores, axis=-1)
+        indices = np.take_along_axis(_indices, indices, axis=1)
+    return indices
+
+
+def _get_topk_dict(X, k=5, sorted=False):
+    """
+    Get top-k elements when X is an dict of indices and scores
+    X['scores'][i, j] will contain score of 
+        ith instance and X['indices'][i, j]th label 
+    """
+    indices = X['indices']
+    scores = X['scores']
+    assert compatible_shapes(indices, scores), \
+        "Dimension mis-match: expected array of shape {} found {}".format(
+            indices.shape, scores.shape)
+    assert scores.shape[1] >= k, "Number of elements in X is < {}".format(
+        k)
+    # assumes indices are already sorted by the user
+    if sorted:
+        return indices[:, :k] if indices.shape[1] > k else indices
+
+    # get top-k entried without sorting them
+    if scores.shape[1] > k:
+        _indices = np.argpartition(scores, -k)[:, -k:]
+        _scores = np.take_along_axis(
+            scores, _indices, axis=-1
+        )
+        # sort top-k entries
+        __indices = np.argsort(-_scores, axis=-1)
+        _indices = np.take_along_axis(_indices, __indices, axis=-1)
+        indices = np.take_along_axis(indices, _indices, axis=-1)
+    else:
+        _indices = np.argsort(-scores, axis=-1)
+        indices = np.take_along_axis(indices, _indices, axis=-1)
+    return indices
+
+
 def _get_topk(X, pad_indx=0, k=5, sorted=False, use_cython=False):
     """
     Get top-k indices (row-wise); Support for
@@ -102,50 +171,21 @@ def _get_topk(X, pad_indx=0, k=5, sorted=False, use_cython=False):
     * np.ndarray with indices or values
     """
     if sp.issparse(X):
-        X = X.tocsr()
-        X.sort_indices()
-        pad_indx = X.shape[1]
-        indices = topk(
-            X, k, pad_indx, 0, return_values=False, use_cython=use_cython)
-    elif type(X) == np.ndarray:
-        # indices are given
-        assert X.shape[1] >= k, "Number of elements in X is < {}".format(k)
-        if np.issubdtype(X.dtype, np.integer):
-            assert sorted, "sorted must be true with indices"
-            indices = X[:, :k] if X.shape[1] > k else X
-        # values are given
-        elif np.issubdtype(X.dtype, np.floating):
-            _indices = np.argpartition(X, -k)[:, -k:]
-            _scores = np.take_along_axis(
-                X, _indices, axis=-1
-            )
-            indices = np.argsort(-_scores, axis=-1)
-            indices = np.take_along_axis(_indices, indices, axis=1)
-    elif type(X) == dict:
-        indices = X['indices']
-        scores = X['scores']
-        assert compatible_shapes(indices, scores), \
-            "Dimension mis-match: expected array of shape {} found {}".format(
-                indices.shape, scores.shape)
-        assert scores.shape[1] >= k, "Number of elements in X is < {}".format(
-            k)
-        # assumes indices are already sorted by the user
-        if sorted:
-            return indices[:, :k] if indices.shape[1] > k else indices
-
-        # get top-k entried without sorting them
-        if scores.shape[1] > k:
-            _indices = np.argpartition(scores, -k)[:, -k:]
-            _scores = np.take_along_axis(
-                scores, _indices, axis=-1
-            )
-            # sort top-k entries
-            __indices = np.argsort(-_scores, axis=-1)
-            _indices = np.take_along_axis(_indices, __indices, axis=-1)
-            indices = np.take_along_axis(indices, _indices, axis=-1)
-        else:
-            _indices = np.argsort(-scores, axis=-1)
-            indices = np.take_along_axis(indices, _indices, axis=-1)
+        indices = _get_topk_sparse(
+            X=X,
+            pad_indx=pad_indx,
+            k=k,
+            use_cython=use_cython)
+    elif isinstance(X, np.ndarray):
+        indices = _get_topk_array(
+            X=X,
+            k=k,
+            sorted=sorted)
+    elif isinstance(X, dict):
+        indices = _get_topk_dict(
+            X=X,
+            k=k,
+            sorted=sorted)
     else:
         raise NotImplementedError(
             "Unknown type; please pass csr_matrix, np.ndarray or dict.")
@@ -869,32 +909,3 @@ def recall_at_k(X, true_labels, k):
     """
     return _recall_at_k(true_labels.indices.astype(np.int64), true_labels.indptr, 
     X.data, X.indices.astype(np.int64), X.indptr, k)
-
-@nb.njit(parallel=True)
-def _recall_with_indices(true_labels_indices, true_labels_indptr, pred_indices):
-    fracs = np.zeros((pred_indices.shape[0],), dtype=np.float32)
-    for i in nb.prange(len(true_labels_indptr) - 1):
-        _true_labels = true_labels_indices[true_labels_indptr[i] : true_labels_indptr[i + 1]]
-        
-        if(len(_true_labels) > 0):
-            fracs[i] = (len(set(pred_indices[i]).intersection(set(_true_labels))) / len(_true_labels))
-    
-    return np.mean(fracs)
-
-def recall_with_indices(true_labels, pred_indices, pred_data, top_k):
-    n = pred_indices.shape[1]
-    
-    if(pred_data is None):
-        top_k = n
-    
-    print(f"calculating recall@{top_k}")
-    
-    assert n >= top_k, f"k for recall@k[{top_k}] is larger than the predictions being provided[{n}]"
-    
-    if(top_k < n):
-        top_inds = np.argsort(pred_data, axis=1)[::-1][:, :top_k]
-        _indices = pred_indices[np.arange(pred_indices.shape[0])[:, None], top_inds]
-    else:
-        _indices = pred_indices
-
-    return _recall_with_indices(true_labels.indices.astype(np.int64), true_labels.indptr, _indices.astype(np.int64))
