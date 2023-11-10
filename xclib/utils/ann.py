@@ -10,6 +10,8 @@ import hnswlib
 from sklearn.neighbors import NearestNeighbors
 import pickle
 import numpy as np
+from .clustering import cluster_balance, b_kmeans_dense
+from .dense import topk
 
 
 class NearestNeighbor(object):
@@ -182,3 +184,87 @@ class HNSWLib(object):
             self.max_elements = obj['max_elements']
         self._init()
         self.index.load_index(fname)
+
+
+class ClusteringIndex(object):
+    """Clustering Index
+
+    Caution: It will always return num_neighbours items when quering
+    So, set efS carefully, otherwise it'll pad with num_items 
+    """
+    def __init__(
+            self,
+            num_clusters,
+            efS,
+            num_neighbours,
+            num_threads=6,
+            space='cosine'):
+        self.num_clusters = num_clusters
+        self.pad_ind = -1
+        self.pad_val = -1
+        self.num_threads = num_threads
+        self.dim = None
+        self.index = None
+        self.efS = efS
+        self.num_neighbours = num_neighbours
+        self.avg_size = None
+        self.cluster_reps = None
+        self.space = space
+        self._init()
+
+    def _init(self):
+        pass
+
+    def fit(self, X, num_clusters=None):
+        _nc = self.num_clusters if num_clusters is None else num_clusters
+
+        self.dim = X.shape[1]
+        self.cluster_reps = np.zeros((self.num_clusters, self.dim), dtype='float32')
+
+        self.index, _ = cluster_balance(
+            X=X.astype('float32'), 
+            clusters=[np.arange(len(X), dtype='int')],
+            num_clusters=_nc,
+            splitter=b_kmeans_dense,
+            num_threads=self.num_threads,
+            verbose=True)
+        for i, ind in enumerate(self.index):
+            self.cluster_reps[i] = np.mean(X[ind], axis=0)
+        self.cluster_reps = self.cluster_reps.T
+        self.avg_size = np.mean(list(map(len, self.index)))
+        self.pad_ind = len(X)
+
+    def query(self, x):
+        c_sims = x @ self.cluster_reps 
+        n = len(x)
+        c_ind, c_sims = topk(
+            c_sims,
+            k=self.efS,
+            sorted=True)
+
+        ind = np.full((n, self.num_neighbours), self.pad_ind, dtype='int64')
+        val = np.full((n, self.num_neighbours), self.pad_val, dtype='float32')
+
+        for i in range(n):
+            s = 0
+            for ci, cs  in zip(c_ind[i], c_sims[i]):
+                e = min(s + len(self.index[ci]), self.num_neighbours)
+                ind[i, s: e] = self.index[ci][:e-s]
+                val[i, s: e] = cs
+                if e == self.num_neighbours:
+                    break
+                else:
+                    s = e
+        return ind, val
+
+    def save(self, fname):
+        with open(fname, 'wb') as fp:
+            pickle.dump({'index': self.index,
+                         'cluster_reps': self.cluster_reps}, fp
+                        )
+
+    def load(self, fname):
+        with open(fname, 'rb') as fp:
+            obj = pickle.load(fp)
+            self.index = obj['index']
+            self.cluster_reps = obj['cluster_reps']
