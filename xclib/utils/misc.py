@@ -4,6 +4,48 @@ from scipy.sparse import save_npz
 import os
 
 
+def train_filter_labels(trn_uids, lbl_uids):
+    """
+        Return train filter labels
+        Args:
+            trn_uids: Product IDs of train documents
+            lbl_uids: Product IDs of labels
+    """
+    # A = A pairs
+    _, x, y = np.intersect1d(trn_uids, lbl_uids, return_indices=True)
+    filter_trn = np.vstack([x, y]).T
+    return filter_trn
+
+
+def test_filter_labels(trn_uids, tst_uids, lbl_uids, trn_X_Y):
+    """
+        Return test filter labels
+        Args:
+            trn_uids: Product IDs of train 
+            tst_uids: Product IDs of test
+            lbl_uids: Product IDs of labels
+            trn_X_Y: csr matrix of training pairs
+    """
+    # A = A pairs
+    _, x, y = np.intersect1d(tst_uids, lbl_uids, return_indices=True)
+    filter_tst_initial = np.vstack([x, y]).T
+
+    # A -> B, B -> A pairs in train-test
+    _, x, y = np.intersect1d(trn_uids, lbl_uids, return_indices=True)
+    trn_lbl_intersect = np.vstack([x, y]).T
+
+    u_trn_doc, filter_x_trn = np.unique(trn_lbl_intersect[:, 0], return_index=True)
+    u_tst_lbl, filter_y_trn = np.unique(filter_tst_initial[:, 1], return_index=True) 
+    tst_trn = trn_X_Y[u_trn_doc][:, u_tst_lbl].T
+    rows, cols = tst_trn.nonzero()
+    rows = filter_tst_initial[:, 0][filter_y_trn[rows]]
+    cols = trn_lbl_intersect[:, 1][filter_x_trn[cols]]
+    overlap = np.vstack([rows, cols]).T
+
+    filter_tst = np.vstack([filter_tst_initial, overlap])
+    return filter_tst
+
+
 def merge_predictions(pred_0, pred_1, beta):
     return beta*pred_0 + (1-beta)*pred_1
 
