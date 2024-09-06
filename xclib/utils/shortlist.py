@@ -178,9 +178,12 @@ class Shortlist(object):
     def fit(self, data):
         self.index.fit(data)
 
-    def query(self, data, *args, **kwargs):
+    def query(self, data, return_raw_score=False, *args, **kwargs):
         indices, distances = self.index.predict(data, *args, **kwargs)
-        return indices, 1-distances
+        if return_raw_score:
+            return indices, distances
+        else:
+            return indices, 1-distances
 
     def save(self, fname):
         self.index.save(fname)
