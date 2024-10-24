@@ -194,7 +194,7 @@ def rank_data(b):
 def _rank(data, indices, indptr):
     cdef Py_ssize_t num_rows = indptr.size - 1
     cdef Py_ssize_t idx
-    cdef np.ndarray[np.int_t, ndim=1] rank = _np.empty(data.size, dtype='int')
+    cdef np.ndarray[np.int64_t, ndim=1] rank = _np.empty(data.size, dtype=np.int64)
     for idx in range(num_rows):
         rank[indptr[idx]:indptr[idx+1]] = rank_data(-1*data[indptr[idx]:indptr[idx+1]])
     return rank
@@ -205,7 +205,7 @@ def _rank(data, indices, indptr):
 def _topk(data, indices, indptr, k, pad_ind, pad_val):
     cdef Py_ssize_t num_rows = indptr.size - 1
     cdef Py_ssize_t idx, num_el, start_idx, end_idx
-    cdef np.ndarray[np.int_t, ndim=2] ind = _np.full((num_rows, k), pad_ind, 'int', 'C')
+    cdef np.ndarray[np.int64_t, ndim=2] ind = _np.full((num_rows, k), pad_ind, np.int64, 'C')
     cdef np.ndarray[np.float64_t, ndim=2] val = _np.full((num_rows, k), pad_val, 'float', 'C')
     for idx in range(num_rows):
         start_idx = indptr[idx]
