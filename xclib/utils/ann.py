@@ -4,14 +4,121 @@
     Use CPUs for computations
     TODO: Add functionanlity to use GPUs
 """
+from numpy import ndarray
 
-import nmslib
-import hnswlib
-from sklearn.neighbors import NearestNeighbors
 import pickle
 import numpy as np
-from .clustering import cluster_balance, b_kmeans_dense
+import nmslib
+import hnswlib
 from .dense import topk
+from sklearn.neighbors import NearestNeighbors
+from .clustering import cluster_balance, b_kmeans_dense
+try:
+    import torch
+except ImportError:
+    print("Pytorch is not installed; GPU based search won't work!")
+
+
+class NearestNeighborGPU(object):
+    """Nearest Neighbor in brute-force fashion
+    * computation is done on GPU
+    """
+    def __init__(
+            self, 
+            num_neighbours: int, 
+            fp16: bool = False, 
+            sorted: bool = False,
+            append_bias: bool = False, 
+            space: str = 'cosine',
+            *args, **kwargs):
+        """
+        Args:
+            num_neighbours (int): number of neighbours to search
+            method (int, optional): method for knn search 
+                Defaults to 'brute-gpu'.
+            batch_size (int, optional): batch size for search. Defaults to 256.
+            fp16 (bool, optional): use half precision or not. Defaults to False.
+            sorted (bool, optional): sort the predictions. Defaults to False.
+            space (str, optional): search space. Defaults to 'cosine'.
+        """
+        self.num_neighbours = num_neighbours
+        self.index = None
+        self.fp16 = fp16
+        self.sorted = sorted
+        self.space = space
+        self.append_bias = append_bias
+        self.device = "cuda"
+
+    def fit(self, data: ndarray) -> None:
+        data = torch.from_numpy(data)
+        if self.fp16:
+            self.index = data.half().T.to(self.device)
+        else:
+            self.index = data.T.to(self.device)
+
+    def _predict(self, data: ndarray) -> tuple[ndarray, ndarray]:
+        data = torch.from_numpy(data)
+        if self.append_bias:
+            data = torch.hstack(
+                [data, torch.ones((len(data), 1), dtype=data.dtype)])
+        scores = data.to(self.device) @ self.index
+        val, ind = torch.topk(scores, k=self.num_neighbours)
+        return ind.cpu().numpy(), val.cpu().numpy()
+
+    def _set_query_time_params(self, num_neighbours: int = None):
+        if num_neighbours is not None:
+            self.num_neighbours = num_neighbours
+
+    def predict(
+            self, 
+            data: ndarray,
+            num_neighbours: int = None) -> tuple[ndarray, ndarray]:
+        """Get closest vectors
+
+        Args:
+            data (ndarray): input data
+            num_neighbours (int, optional): get these many neighbors.
+                Defaults to None.
+
+        Returns:
+            tuple[ndarray, ndarray]: indices and values of top neighbors
+        """
+        self._set_query_time_params(num_neighbours)
+        return self._predict(data)
+
+    def query(
+            self, 
+            data: ndarray,
+            num_neighbours: int = None) -> tuple[ndarray, ndarray]:
+        """Get closest vectors
+
+        Args:
+            data (ndarray): input data
+            num_neighbours (int, optional): get these many neighbors.
+                Defaults to None.
+
+        Returns:
+            tuple[ndarray, ndarray]: indices and values of top neighbors
+        """
+        return self.predict(data, num_neighbours)
+
+    def save(self, fname: str) -> None:
+        with open(fname, 'wb') as fp:
+            pickle.dump({'num_neighbours': self.num_neighbours,
+                         'index': self.index,
+                         'fp16': self.fp16,
+                         'sorted': self.sorted,
+                         'space': self.space},
+                        fp, protocol=4)
+
+    def load(self, fname: str) -> None:
+        with open(fname, 'rb') as fp:
+            temp = pickle.load(fp)
+            self.index = temp['index']
+            self.num_neighbours = temp['num_neighbours']
+            self.fp16 = temp['fp16']
+            self.sorted = temp['sorted']
+            self.space = temp['space']
 
 
 class NearestNeighbor(object):

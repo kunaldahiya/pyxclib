@@ -1,11 +1,11 @@
-from .ann import NearestNeighbor, HNSW, HNSWLib
-import pickle
-from .clustering import Cluster
-import numpy as np
-import numba as nb
-from ..utils.dense import compute_centroid
 import os
 import math
+import pickle
+import numpy as np
+import numba as nb
+from .clustering import Cluster
+from ..utils.dense import compute_centroid
+from .ann import NearestNeighbor, HNSW, HNSWLib, NearestNeighborGPU
 
 
 @nb.njit(cache=True)
@@ -135,8 +135,8 @@ class Shortlist(object):
         search in this space 'cosine', 'ip'
     """
 
-    def __init__(self, method, num_neighbours, M, efC, 
-                 efS, num_threads=24, space='cosine'):
+    def __init__(self, method, num_neighbours, M=50, efC=100, 
+                 efS=100, num_threads=24, space='cosine', *args, **kwargs):
         self.method = method
         self.num_neighbours = num_neighbours
         self.M = M
@@ -145,14 +145,21 @@ class Shortlist(object):
         self.efS = efS
         self.num_threads = num_threads
         self.index = None
-        self._construct()
+        self._construct(*args, **kwargs)
 
-    def _construct(self):
+    def _construct(self, *args, **kwargs):
         if self.method == 'brute':
             self.index = NearestNeighbor(
                 num_neighbours=self.num_neighbours,
                 method='brute',
                 num_threads=self.num_threads
+            )
+        elif self.method == 'brute_gpu':
+            self.index = NearestNeighborGPU(
+                num_neighbours=self.num_neighbours,
+                space=self.space,
+                sorted=True,
+                *args, **kwargs
             )
         elif self.method == 'hnswlib':
             self.index = HNSWLib(
