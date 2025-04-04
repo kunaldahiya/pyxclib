@@ -3,6 +3,10 @@ from .sparse import normalize as _normalize
 from .sparse import binarize as _binarize
 
 
+def normalize(x, *args, **kwargs):
+    return _normalize(x, *args, **kwargs)
+
+
 def topk(values, indices=None, k=10, sorted=False):
     """
     Return topk values from a np.ndarray with support for optional

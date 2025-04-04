@@ -10,7 +10,7 @@ import pickle
 import numpy as np
 import nmslib
 import hnswlib
-from .dense import topk
+from .dense import topk, normalize
 from sklearn.neighbors import NearestNeighbors
 from .clustering import cluster_balance, b_kmeans_dense
 try:
@@ -50,14 +50,20 @@ class NearestNeighborGPU(object):
         self.device = "cuda"
 
     def fit(self, data: ndarray) -> None:
-        data = torch.from_numpy(data)
+        if self.space == 'cosine':
+            data = torch.from_numpy(normalize(data))
+        else:
+            data = torch.from_numpy(data)
         if self.fp16:
             self.index = data.half().T.to(self.device)
         else:
             self.index = data.T.to(self.device)
 
     def _predict(self, data: ndarray) -> tuple[ndarray, ndarray]:
-        data = torch.from_numpy(data)
+        if self.space == 'cosine':
+            data = torch.from_numpy(normalize(data))
+        else:
+            data = torch.from_numpy(data)
         if self.append_bias:
             data = torch.hstack(
                 [data, torch.ones((len(data), 1), dtype=data.dtype)])
