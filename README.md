@@ -5,7 +5,19 @@ Tools for extreme multi-label classification problems.
 ```bash
 git clone https://github.com/kunaldahiya/pyxclib.git
 cd pyxclib
-python3 setup.py install --user
+uv sync
+```
+
+Or install directly with `uv`:
+
+```bash
+uv pip install xclib
+```
+
+For development (includes dev dependencies):
+
+```bash
+uv sync --dev
 ```
 
 Usage
